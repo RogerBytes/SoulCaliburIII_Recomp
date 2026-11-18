@@ -7,6 +7,7 @@ import tarfile
 import tempfile
 import unittest
 import zipfile
+from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -121,6 +122,49 @@ class BuildTests(unittest.TestCase):
                 sc3_build.remove_stale_sources()
             self.assertEqual((external / 'keep.txt').read_bytes(), b'outside source')
             self.assertTrue((root / 'scripts/linked').exists())
+
+    def disc_folder(self, folder, name, data=b'elf'):
+        (Path(folder) / name).write_bytes(data)
+        build = sc3_build.Build.__new__(sc3_build.Build)
+        build.args, build.state, build.disc_dir = SimpleNamespace(disc=folder), {}, str(Path(folder) / 'work')
+        return build
+
+    def test_verify_takes_the_european_disc_and_its_recomp_inputs(self):
+        with tempfile.TemporaryDirectory() as folder:
+            build = self.disc_folder(folder, 'SCES_533.12')
+            digest = sc3_build.hashlib.sha1(b'elf').hexdigest()
+            releases = dict(sc3_build.RELEASES, **{'SCES_533.12': (digest,) + sc3_build.RELEASES['SCES_533.12'][1:]})
+            with patch.object(sc3_build, 'RELEASES', releases), redirect_stdout(io.StringIO()):
+                self.assertEqual(build.step_verify(), 'SCES_533.12')
+                self.assertEqual(build.boot(), 'SCES_533.12')
+                self.assertEqual(build.elf(), str(Path(folder) / 'work' / 'SCES_533.12'))
+                self.assertEqual(build.symbol_map(), str(ROOT / 'recomp' / 'pal' / 'sc3_symbols.txt'))
+                self.assertTrue(build.wanted('SCES_533.12'))
+                self.assertFalse(build.wanted('SLUS_212.16'))
+
+    def test_verify_names_the_disc_a_damaged_copy_should_be(self):
+        with tempfile.TemporaryDirectory() as folder:
+            build = self.disc_folder(folder, 'SCES_533.12')
+            with self.assertRaises(sc3_build.BuildError) as raised:
+                build.step_verify()
+            self.assertIn('SHA-1', str(raised.exception))
+            self.assertIn('SCES-53312', str(raised.exception))
+
+    def test_verify_refuses_another_release(self):
+        with tempfile.TemporaryDirectory() as folder:
+            build = self.disc_folder(folder, 'SLES_533.70')
+            with self.assertRaises(sc3_build.BuildError) as raised:
+                build.step_verify()
+            self.assertIn('boots SLES_533.70', str(raised.exception))
+            self.assertIn('SLUS-21216', str(raised.exception))
+            self.assertIn('SCES-53312', str(raised.exception))
+
+    def test_a_work_folder_without_a_verify_record_builds_the_extracted_disc(self):
+        with tempfile.TemporaryDirectory() as folder:
+            build = self.disc_folder(folder, 'ignored')
+            Path(build.disc_dir).mkdir()
+            (Path(build.disc_dir) / 'SCES_533.12').write_bytes(b'')
+            self.assertEqual(build.boot(), 'SCES_533.12')
 
     @unittest.skipUnless((ENGINE / 'tools/native_pack/ps2_disc.py').is_file(), 'no BozoEngine checkout')
     def test_check_refuses_a_file_that_is_not_a_disc(self):
