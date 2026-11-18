@@ -195,7 +195,10 @@ def elf_files(disc):
     if os.path.exists(os.path.join(disc, PAL_ELF_NAME)):
         import sc3_region_map
         places = sc3_region_map.Map(PAL_MAP)
-        return os.path.join(disc, PAL_ELF_NAME), [places.translate(a) for a in ELF_FILES]
+        addresses = [places.translate(a) for a in ELF_FILES]
+        if None in addresses:
+            raise SystemExit('%s places no %#x in %s' % (PAL_MAP, ELF_FILES[addresses.index(None)], PAL_ELF_NAME))
+        return os.path.join(disc, PAL_ELF_NAME), addresses
     return None, []
 
 
