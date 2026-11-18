@@ -33,7 +33,7 @@ int main(int argc, char **argv)
     identity.title = "Soulcalibur III";
     identity.folder = "SoulCaliburIII_Recomp";
     identity.xdgFolder = "soulcalibur3_recomp";
-    identity.bootElf = "SLUS_212.16";
+    identity.bootElf = sc3::region::kBootElf;
     identity.dataFolder = "game";
     bozo::app::setIdentity(identity);
     bozo::app::startLogging();

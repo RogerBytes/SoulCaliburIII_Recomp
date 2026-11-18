@@ -43,4 +43,4 @@ void sc3::shutdown()
     textures::shutdown();
 }
 
-BOZO_PORT("Soulcalibur III (USA)", "SLUS_212.16", sc3::kEntry, &applySc3)
+BOZO_PORT(sc3::region::kTitle, sc3::region::kBootElf, sc3::kEntry, &applySc3)

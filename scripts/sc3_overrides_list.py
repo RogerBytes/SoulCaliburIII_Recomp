@@ -2,14 +2,21 @@
 (runtime.registerFunction(<address>, ...)), whatever environment toggle guards it, and every store the store patch
 tells apart (a "// bozo:store <constant>" line next to it).
 
-    python scripts/sc3_overrides_list.py <port folder> <out.txt>
+    python scripts/sc3_overrides_list.py <port folder> <out.txt> [--map <map> --reviewed <addresses>]
+
+The port names SLUS_212.16's addresses: with a release's map and reviewed addresses (recomp/pal/), the list carries
+their places in that release (scripts/sc3_region_map.py).
 
 The generated code must route every one of them to the runtime: BozoEngine checks at startup that each registered
 override is an external of the generated code (bozo::port::undeclared) and refuses to run otherwise.
 """
+import argparse
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import sc3_region_map
 
 CONST = re.compile(r'\b(k[A-Z0-9]\w*)\s*=\s*(?:at\()?(0x[0-9A-Fa-f]+)u?\b')
 ARRAY = re.compile(r'\b(k[A-Z0-9]\w*)\[\]\s*=\s*\{([^}]*)\}')
@@ -20,7 +27,13 @@ NATIVE = re.compile(r'//\s*bozo:native\s+(k\w+)')
 
 
 def main():
-    folder, out = Path(sys.argv[1]), Path(sys.argv[2])
+    ap = argparse.ArgumentParser()
+    ap.add_argument('folder', type=Path)
+    ap.add_argument('out', type=Path)
+    ap.add_argument('--map')
+    ap.add_argument('--reviewed')
+    args = ap.parse_args()
+    folder, out = args.folder, args.out
     files = sorted(folder.glob('*.cpp'))
     constants, perFile = {}, {}
     for f in files:
@@ -64,6 +77,19 @@ def main():
                 errors.append(f'{f.name}: native instruction array {name} was not found')
             for a in arrays.get(name, []):
                 native[a] = f'{f.name}: {name}'
+    if args.map:
+        region = sc3_region_map.Region(args.map, args.reviewed)
+
+        def placed(found):
+            moved = {}
+            for a, where in found.items():
+                here, why = region.place(a)
+                if why:
+                    errors.append(f'{where}: 0x{a:x}: {why}')
+                else:
+                    moved[here] = where
+            return moved
+        overrides, stores, native = placed(overrides), placed(stores), placed(native)
     if errors:
         sys.exit('\n'.join(errors))
     lines = ['# SC3\'s overrides and patched stores (scripts/sc3_overrides_list.py from bozo/port/*.cpp). Do not edit.']

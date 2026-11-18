@@ -1,0 +1,7 @@
+# Addresses of the port inside SCES_533.12 functions that changed (recomp/pal/address_map.txt's changed lines), placed
+# by reading both executables: <SLUS_212.16 address> <SCES_533.12 address>, then why.
+0x12e654 0x12e514  # main loop: the return from 0x3ae238 (0x3b37d0), the same sb 0xabd before it, lui 0x47 at it
+0x12ea90 0x12e950  # main loop: the return from 0x148098 (0x148180), the same sb 0xabd before it, lbu 0xacb at it
+0x1f8598 0x1f8d70  # shadow volumes: its own body only relocated; the function before it in the same block changed
+0x217e28 0x2190e0  # movie copy: the same prologue; PAL adds a block on its early return (a call to 0x128b38's PAL twin)
+0x218600 0x219918  # movie task end: the same prologue and body

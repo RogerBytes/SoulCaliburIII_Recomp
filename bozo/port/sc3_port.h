@@ -7,6 +7,7 @@
 #include "bozo/port.h"
 #include "bozo/recomp.h"
 #include "sc3_functions.h"
+#include "sc3_region.h"
 
 #include <string>
 #include <vector>
@@ -17,8 +18,20 @@ namespace sc3
 {
     using Registry = bozo::port::Registry;
 
-    // An address of SLUS_212.16, where it lives in the executable this build is for.
-    consteval uint32_t at(uint32_t ntsc) { return ntsc; }
+    // An address of SLUS_212.16, where it lives in the executable this build is for (sc3_region.h, made by
+    // scripts/sc3_region_map.py header from every at() of bozo/).
+    consteval uint32_t at(uint32_t ntsc)
+    {
+        if (!region::kMoved)
+            return ntsc;
+        for (const region::Placed &placed : region::kPlaced)
+            if (placed.ntsc == ntsc)
+                return placed.here;
+        throw "sc3::at: an address sc3_region.h does not place";
+    }
+    // The generated function at a SLUS_212.16 function's address, in the executable this build is for.
+    template <uint32_t ntsc>
+    inline constexpr GuestFunction recompiled = Guest<ntsc>::function;
 
     constexpr uint32_t kEntry = 0x100008u;
 

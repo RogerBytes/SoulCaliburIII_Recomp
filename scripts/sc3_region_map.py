@@ -4,6 +4,8 @@
     python scripts/sc3_region_map.py translate <map> <address>...
     python scripts/sc3_region_map.py symbols <map> <ntsc "name 0xADDR" list> <out>
     python scripts/sc3_region_map.py patches <map> <ntsc patches> <SLUS_212.16> <SCES_533.12> <reviewed> <out>
+    python scripts/sc3_region_map.py header <sc3_region.h> --title <title> --elf <boot ELF>
+                                     [--map <map> --reviewed <addresses> --sources <folder>...]
 
 build lines the two executables up and writes the ranges that moved as a block:
   code     function by function (a jal target to the next): bodies equal once every relocated field is masked (jump
@@ -18,10 +20,14 @@ build lines the two executables up and writes the ranges that moved as a block:
 
 A map line is `<kind> <ntsc begin> <ntsc end> <offset>`, the end excluded. An address in no range has no translation.
 symbols and patches carry SC3's recomp inputs over with the map; patches takes the reviewed lines (`<ntsc address>
-<address> <expected> <replacement>`) in place of what it cannot carry itself.
+<address> <expected> <replacement>`) in place of what it cannot carry itself. header writes the port's sc3_region.h:
+the place of every address the port names with at(), each read from the reviewed addresses or the map; an address
+inside a function that changed has to be reviewed.
 """
+import argparse
 import bisect
 import difflib
+import re
 import struct
 import subprocess
 import sys
@@ -378,6 +384,90 @@ class Map:
         return next(((lo, hi) for lo, hi in self.changed if lo <= address < hi), None)
 
 
+class Region:
+    """A release's places for the NTSC addresses: the reviewed lines (`<ntsc> <address>`) first, then the map. A
+    reviewed address is the one way to name an address inside a function that changed."""
+
+    def __init__(self, map_path, reviewed_path):
+        self.map = Map(map_path)
+        self.reviewed = {}
+        for line in Path(reviewed_path).read_text().splitlines():
+            parts = line.split('#')[0].split()
+            if len(parts) >= 2:
+                self.reviewed[int(parts[0], 16)] = int(parts[1], 16)
+
+    def place(self, address):
+        """(its address here, None) or (None, why not)."""
+        if address in self.reviewed:
+            return self.reviewed[address], None
+        changed = self.map.in_changed(address)
+        if changed:
+            return None, 'inside %#x-%#x, which changed: read it and add it to the reviewed addresses' % changed
+        here = self.map.translate(address)
+        return (here, None) if here is not None else (None, 'no place in the map')
+
+
+AT = re.compile(r'\bat\((0x[0-9A-Fa-f]+)u?\)')
+GUEST = re.compile(r'\brecompiled<(0x[0-9A-Fa-f]+)u?>')
+
+
+def header(argv):
+    """sc3_region.h: the build's release, the place of every address the port names with at(), and the generated
+    function each recompiled<address> of the port calls there."""
+    ap = argparse.ArgumentParser(prog='sc3_region_map.py header')
+    ap.add_argument('out')
+    ap.add_argument('--title', required=True)
+    ap.add_argument('--elf', required=True)
+    ap.add_argument('--symbols', help='the symbol map bozo-recomp names the functions with')
+    ap.add_argument('--map')
+    ap.add_argument('--reviewed')
+    ap.add_argument('--sources', nargs='*', default=[])
+    args = ap.parse_args(argv)
+    region = Region(args.map, args.reviewed) if args.map else None
+    names = {}
+    if args.symbols:
+        for line in Path(args.symbols).read_text(encoding='utf-8').splitlines():
+            parts = line.split()
+            if len(parts) >= 2 and not line.startswith('#'):
+                names[int(parts[1], 16)] = parts[0]
+    placed, called, errors = {}, {}, []
+    for folder in args.sources:
+        for f in sorted(Path(folder).rglob('*')):
+            if f.suffix not in ('.cpp', '.h'):
+                continue
+            for n, line in enumerate(f.read_text(encoding='utf-8').splitlines(), 1):
+                for pattern, found in ((AT, placed), (GUEST, called)):
+                    for text in pattern.findall(line):
+                        address = int(text, 16)
+                        here, why = region.place(address) if region else (address, None)
+                        if why:
+                            errors.append('%s:%d: %#x: %s' % (f, n, address, why))
+                        else:
+                            found[address] = here
+    if errors:
+        print('\n'.join(errors))
+        return 1
+    rows = ''.join('        {0x%08Xu, 0x%08Xu},\n' % pair for pair in sorted(placed.items())) if region else ''
+    guests = ''.join('    template <>\n    struct Guest<0x%Xu>\n    {\n        static constexpr GuestFunction function = &::%s_0x%x;\n    };\n'
+                     % (address, names.get(here, 'func'), here) for address, here in sorted(called.items()))
+    text = ('// %s for %s: scripts/sc3_region_map.py header. Do not edit.\n'
+            '#pragma once\n\n#include "sc3_functions.h"\n\n#include <cstdint>\n\n'
+            'namespace sc3::region\n{\n'
+            '    inline constexpr const char *kTitle = "%s";\n'
+            '    inline constexpr const char *kBootElf = "%s";\n'
+            '    inline constexpr bool kMoved = %s;\n'
+            '    struct Placed\n    {\n        uint32_t ntsc, here;\n    };\n'
+            '    inline constexpr Placed kPlaced[] = {\n%s        {0u, 0u},\n    };\n}\n\n'
+            'namespace sc3\n{\n'
+            '    using GuestFunction = void (*)(uint8_t *, R5900Context *, Runtime *);\n'
+            '    template <uint32_t ntsc>\n    struct Guest;\n%s}\n'
+            % (Path(args.out).name, args.elf, args.title, args.elf, 'true' if region else 'false', rows, guests))
+    out = Path(args.out)
+    if not out.exists() or out.read_text(encoding='utf-8') != text:
+        out.write_text(text, encoding='utf-8', newline='\n')
+    return 0
+
+
 def translate(path, addresses):
     m = Map(path)
     for text in addresses:
@@ -470,6 +560,8 @@ def main(argv):
         build(*argv[1:4])
     elif len(argv) >= 2 and argv[0] == 'translate':
         translate(argv[1], argv[2:])
+    elif len(argv) >= 1 and argv[0] == 'header':
+        return header(argv[1:])
     elif len(argv) >= 4 and argv[0] == 'symbols':
         return symbols(*argv[1:4])
     elif len(argv) >= 7 and argv[0] == 'patches':
