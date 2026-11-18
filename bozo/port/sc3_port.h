@@ -90,7 +90,7 @@ namespace sc3
     namespace audio { void install(Registry &runtime); }
     void statsLine(const char *format, ...) __attribute__((format(printf, 1, 2)));
     // The console language the game reads from the OSD settings: SC3_LANGUAGE (en, fr, de, es, it; the PAL disc has all
-    // five), English when unset. Set before the game's first instruction.
+    // five), English when unset. Set at _InitSys, before the game reads it.
     void applyLanguage(PS2Runtime *runtime);
     // After the game's last frame, while the renderer still exists: players stopped, every texture and draw the port keeps released.
     void shutdown();

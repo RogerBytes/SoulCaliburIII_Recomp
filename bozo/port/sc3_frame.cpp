@@ -120,6 +120,7 @@ namespace sc3::frame
         void initSys(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
             const uint32_t returnTo = getRegU32(ctx, 31);
+            applyLanguage(runtime);
             recompiled<0x440610u>(rdram, ctx, runtime);
             setReturnS32(ctx, 0);
             ctx->pc = returnTo;
