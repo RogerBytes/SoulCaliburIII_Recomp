@@ -147,7 +147,7 @@ moved by varying amounts. The port names SLUS_212.16's addresses everywhere, and
 - PAL asks at boot for PAL50 or PAL60 (and counts 30 s down on PAL50). The frame pacer, the field a frame with no wait
   of its own takes, and the movie clock follow the field rate BozoEngine's kernel keeps from the game's display set-up:
   50 or 60 game frames a second.
-- `SC3_LANGUAGE` (en, fr, de, es, it) sets the OSD language GetOsdConfigParam answers, at `_start`. The launcher's
+- `SC3_LANGUAGE` (en, fr, de, es, it) sets the OSD language GetOsdConfigParam answers, at `_InitSys`. The launcher's
   settings pass it for the European disc.
 - Open: PAL's movie copy (0x217E28 in NTSC terms) does more on its early return (a call to 0x128B38's PAL twin, a
   field +0x4C set); the port's override skips the copy when it shows movie pictures itself, PAL's addition with it.
