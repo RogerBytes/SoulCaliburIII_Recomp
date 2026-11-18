@@ -41,6 +41,7 @@ int main(int argc, char **argv)
 
     bozo::host::FreeOptions opt;
     opt.profileIo = true;
+    opt.framePeriodCycles = sc3::clock::kNtscFieldCycles;
     opt.elf = BOZO_RUN_DEFAULT_ELF;
     sc3::useSymbolMap(opt, argv[0]);
     opt.realTime = true;

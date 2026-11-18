@@ -102,7 +102,9 @@ namespace sc3::clock
 
     double fieldSeconds(PS2Runtime *runtime)
     {
-        return static_cast<double>(fieldCycles(runtime)) / static_cast<double>(bozo::port::kEeClockHz);
+        const uint64_t field = fieldCycles(runtime);
+        // NTSC's field stays the exact 1001/60000 s the movie clocks counted: an NTSC run's movies and sound are unchanged.
+        return field == kNtscFieldCycles ? 1001.0 / 60000.0 : static_cast<double>(field) / static_cast<double>(bozo::port::kEeClockHz);
     }
 
     uint32_t linesSinceVblank(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)

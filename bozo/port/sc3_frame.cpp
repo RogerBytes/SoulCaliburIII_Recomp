@@ -105,10 +105,10 @@ namespace sc3::frame
             g_pacer.setPaced(bozo::port::realTime(runtime));
             g_pacer.frameEnd();
             ot::holdStill();
-            // A frame that ends with no wait of its own (a movie's, in ADXM's sleep) still takes a field of EE time: what the
-            // game's threads, the mixer and a deterministic movie clock run on.
+            // The host fills a frame with no wait of its own (a movie's, in ADXM's sleep) up to an NTSC field; a PAL50 field
+            // is longer, and the rest is charged here.
             const uint64_t fieldCycles = clock::fieldCycles(runtime), elapsed = bozo::port::now(runtime) - g_lastFrameEnd;
-            if (elapsed < fieldCycles)
+            if (fieldCycles > clock::kNtscFieldCycles && elapsed < fieldCycles)
                 bozo::port::accountCycles(runtime, ctx, fieldCycles - elapsed);
             g_lastFrameEnd = bozo::port::now(runtime);
             bozo::port::frameEnd(runtime, ctx);
