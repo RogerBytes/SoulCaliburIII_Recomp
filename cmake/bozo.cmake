@@ -69,6 +69,9 @@ else()
     message(FATAL_ERROR "SC3: SC3_REGION is NTSC or PAL, not ${sc3_region}")
 endif()
 message(STATUS "SC3: ${sc3_title}, ${sc3_boot}")
+if(SC3_SYMBOL_MAP STREQUAL "${CMAKE_SOURCE_DIR}/recomp/sc3_symbols.txt" OR SC3_SYMBOL_MAP STREQUAL "${CMAKE_SOURCE_DIR}/recomp/pal/sc3_symbols.txt")
+    set(SC3_SYMBOL_MAP "" CACHE FILEPATH "" FORCE)
+endif()
 if(NOT SC3_SYMBOL_MAP)
     file(STRINGS "${BOZO_ENGINE_DIR}/tools/externals/main.cpp" engine_reads_symbol_maps REGEX "\"--symbols\"")
     if(engine_reads_symbol_maps)
@@ -257,24 +260,28 @@ if(NOT SC3_DISC_DIR)
     get_filename_component(SC3_DISC_DIR "${SC3_ELF}" DIRECTORY)
 endif()
 set(pack_dir "${CMAKE_BINARY_DIR}/packs")
+file(SHA1 "${SC3_ELF}" sc3_pack_elf_sha1)
+file(CONFIGURE OUTPUT "${CMAKE_BINARY_DIR}/sc3_disc.txt" CONTENT "${sc3_boot} ${sc3_pack_elf_sha1} ${SC3_DISC_DIR}\n")
+set(sc3_pack_disc "${CMAKE_BINARY_DIR}/sc3_disc.txt")
 set(pack_env ${CMAKE_COMMAND} -E env "BOZO_ENGINE_TOOLS=${BOZO_ENGINE_DIR}/tools")
 add_custom_command(
     OUTPUT ${pack_dir}/sc3_textures.pack ${pack_dir}/sc3_textures.keys
     COMMAND ${CMAKE_COMMAND} -E make_directory ${pack_dir}
     COMMAND ${pack_env} ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/scripts/sc3_texture_pack.py" "${SC3_DISC_DIR}" ${pack_dir}/sc3_textures.pack
-    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_texture_pack.py"
+    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_texture_pack.py" ${sc3_pack_disc}
     COMMENT "Building the texture pack from the disc")
 add_custom_command(
     OUTPUT ${pack_dir}/sc3_meshes.pack
     COMMAND ${CMAKE_COMMAND} -E make_directory ${pack_dir}
     COMMAND ${pack_env} ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/scripts/sc3_mesh_pack.py" "${SC3_DISC_DIR}" ${pack_dir}/sc3_meshes.pack
-    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_mesh_pack.py"
+    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_mesh_pack.py" ${sc3_pack_disc}
     COMMENT "Building the mesh pack from the disc")
 add_custom_command(
     OUTPUT ${pack_dir}/sc3_2d.pack
     COMMAND ${CMAKE_COMMAND} -E make_directory ${pack_dir}
     COMMAND ${pack_env} ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/scripts/sc3_2d_pack.py" "${SC3_DISC_DIR}" ${pack_dir}/sc3_2d.pack
     DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_2d_pack.py" "${CMAKE_SOURCE_DIR}/scripts/sc3_texture_pack.py" "${CMAKE_SOURCE_DIR}/scripts/sc3_mesh_pack.py"
+            "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" "${CMAKE_SOURCE_DIR}/recomp/pal/address_map.txt" ${sc3_pack_disc}
     COMMENT "Building the 2D pack from the disc")
 add_custom_target(sc3_packs DEPENDS ${pack_dir}/sc3_textures.pack ${pack_dir}/sc3_meshes.pack ${pack_dir}/sc3_2d.pack)
 
