@@ -19,4 +19,13 @@ sceMpegReset 0x3e1908          # sceMpegCreate's call in the reference's sceMpeg
 sceCdReadClock 0x425438        # libcdvd; same a0 15, a1 1, t2 16 and scmd call shape as the reference, without its debug prints; called once by libscf
 sceGsSyncVCallback 0x420a00    # libgraph after sceGsExecStoreImage; 0x41fe08 for its params, func 0: DisableIntc(2), RemoveIntcHandler(2, id); else AddIntcHandler(2, func, -1), EnableIntc(2); returns the old func
 sceMcChdir 0x426b28            # libmc after mceStorePwd; the -100 and -200 guards of its neighbours, -210 on an empty path, RPC function 12 with port, slot, path up to 1023 bytes and an out buffer, reply handler mceStorePwd
+sceMcEnd 0x425e10              # libmc between sceMcInit and sceMcChangeThreadPriority; sceMcSync, then DeleteSema twice, libmc's two semaphores
+sceMcChangeThreadPriority 0x425e78 # libmc before sceMcGetSlotMax; PollSema, the -100 and -200 guards, sceSifCallRpc function 0x14, SignalSema
+sceMcFormat 0x426c68           # libmc after sceMcChdir; the -100 and -200 guards, sceSifCallRpc function 0x10 with port and slot; the game's card format at 0x2052dc
+sceMcDelete 0x426d38           # libmc after sceMcFormat; the -100, -200 and -210 guards, strncpy of the path, sceSifCallRpc function 0xf
+sceMcFlush 0x426e58            # libmc after sceMcDelete; the -100 and -200 guards, sceSifCallRpc function 0xa with the fd; the game's save after a write at 0x205428
+sceMcSetFileInfo 0x426f18      # libmc after sceMcFlush; the -100, -200 and -210 guards, strncpy of the path, FlushCache of the info, sceSifCallRpc function 0xe
+sceMcRename 0x4270e8           # libmc after sceMcSetFileInfo; same guards, strncpy of the old and the new name, sceSifCallRpc function 0xe as sceMcSetFileInfo
+sceMcUnformat 0x427240         # libmc after sceMcRename; the -100 and -200 guards, sceSifCallRpc function 0x11 with port and slot
+sceMcGetEntSpace 0x427310      # libmc after sceMcUnformat; the -100, -200 and -210 guards, strncpy of the path, sceSifCallRpc function 0x12
 # _vfprintf_r: bozo_symbolmap.py's match says 0x430000, a branch inside it; recomp/sc3_symbols.txt carries 0x42fdc0 by hand, the prologue _vfiprintf_r's tail jump at 0x42fdb4 targets.
