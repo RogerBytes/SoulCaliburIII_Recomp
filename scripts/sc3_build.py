@@ -83,7 +83,6 @@ def configure_gcc_paths(env, compiler_bin):
 ENGINE = os.path.join(ROOT, 'BozoEngine')  # --engine replaces it
 ps2_disc = None  # BozoEngine's tools/native_pack/ps2_disc.py, imported by load_engine()
 
-# The discs SoulCaliburIII_Recomp supports, by boot ELF: its SHA-1, what to call it, the folder of its recomp inputs.
 RELEASES = {
     'SLUS_212.16': ('9bbb67a70137052931bc245855eedeee6bbe5b49', 'USA disc (SLUS-21216)', 'recomp'),
     'SCES_533.12': ('8c79c1db3395e72ada118860433de6638ccf9401', 'European disc (SCES-53312)', os.path.join('recomp', 'pal')),
@@ -397,10 +396,11 @@ class Build:
                                [file_stamp(os.path.join(ROOT, 'recomp', n)) for n in RECOMP_INPUTS],
                                [file_stamp(os.path.join(self.recomp_dir(), n)) for n in RECOMP_INPUTS + RELEASE_INPUTS],
                                [file_stamp(os.path.join(ROOT, 'scripts', n)) for n in
-                                ('sc3_overrides_list.py', 'sc3_externals_all_transfers.py')])
+                                ('sc3_overrides_list.py', 'sc3_externals_all_transfers.py', 'sc3_region_map.py')])
         if step == 'packs':
             return fingerprint(prev('configure'),
-                               [file_stamp(os.path.join(ROOT, 'scripts', t)) for t in PACK_SCRIPTS],
+                               [file_stamp(os.path.join(ROOT, 'scripts', t)) for t in PACK_SCRIPTS + ('sc3_region_map.py',)],
+                               file_stamp(os.path.join(ROOT, 'recomp', 'pal', 'address_map.txt')),
                                tree_stamp(os.path.join(ENGINE, 'tools', 'native_pack'), ('.py',)))
         if step == 'compile':
             return fingerprint(prev('recompile'), prev('packs'),
