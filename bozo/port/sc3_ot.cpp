@@ -292,8 +292,8 @@ namespace sc3::ot
         s.emptyKicks += frame.draws == 0u ? 1u : 0u;
         if (++s.kicks % 250u == 0u)
         {
-            std::fprintf(stderr, "[sc3:ot] 250 kicks: %llu draws, %llu kicks with none\n", static_cast<unsigned long long>(s.drawsSinceReport),
-                         static_cast<unsigned long long>(s.emptyKicks));
+            statsLine("[sc3:ot] 250 kicks: %llu draws, %llu kicks with none\n", static_cast<unsigned long long>(s.drawsSinceReport),
+                      static_cast<unsigned long long>(s.emptyKicks));
             s.drawsSinceReport = s.emptyKicks = 0;
         }
     }

@@ -4126,16 +4126,16 @@ namespace sc3
                 misses += item;
             }
             s.textureMisses.clear();
-            std::fprintf(stderr, "[sc3:2d] 250 frames: leaves bound %llu (not the pack's %llu), frame pages %llu;%s\n", static_cast<unsigned long long>(s.bound),
-                         static_cast<unsigned long long>(s.boundBad), static_cast<unsigned long long>(s.frameTextures), misses.empty() ? " no texture misses" : misses.c_str());
+            statsLine("[sc3:2d] 250 frames: leaves bound %llu (not the pack's %llu), frame pages %llu;%s\n", static_cast<unsigned long long>(s.bound),
+                      static_cast<unsigned long long>(s.boundBad), static_cast<unsigned long long>(s.frameTextures), misses.empty() ? " no texture misses" : misses.c_str());
             s.frameTextures = 0;
             const auto builder = [](const char *name, BuilderStats &b)
             {
                 if (b.calls != 0u)
-                    std::fprintf(stderr, "[sc3:2d]   %s: %llu calls, %llu native, %llu sprites, %llu lost (no file %llu, no block %llu, no texture %llu), %llu pages dropped\n", name,
-                                 static_cast<unsigned long long>(b.calls), static_cast<unsigned long long>(b.native), static_cast<unsigned long long>(b.sprites),
-                                 static_cast<unsigned long long>(b.toGs), static_cast<unsigned long long>(b.noFile), static_cast<unsigned long long>(b.noBlock),
-                                 static_cast<unsigned long long>(b.noTexture), static_cast<unsigned long long>(b.dropped));
+                    statsLine("[sc3:2d]   %s: %llu calls, %llu native, %llu sprites, %llu lost (no file %llu, no block %llu, no texture %llu), %llu pages dropped\n", name,
+                              static_cast<unsigned long long>(b.calls), static_cast<unsigned long long>(b.native), static_cast<unsigned long long>(b.sprites),
+                              static_cast<unsigned long long>(b.toGs), static_cast<unsigned long long>(b.noFile), static_cast<unsigned long long>(b.noBlock),
+                              static_cast<unsigned long long>(b.noTexture), static_cast<unsigned long long>(b.dropped));
                 b = BuilderStats{};
             };
             builder("labels 0x1388E8", s.labels);

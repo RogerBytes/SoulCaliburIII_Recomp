@@ -59,6 +59,7 @@ namespace sc3
         void shutdown();
     }
     namespace audio { void install(Registry &runtime); }
+    void statsLine(const char *format, ...) __attribute__((format(printf, 1, 2)));
     // After the game's last frame, while the renderer still exists: players stopped, every texture and draw the port keeps released.
     void shutdown();
 }
