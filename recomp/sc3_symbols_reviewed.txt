@@ -3,6 +3,7 @@
 # other tool's names. Input of `bozo_symbolmap.py match --reviewed`, which refuses a line contradicting its own matches.
 # Regenerate recomp/sc3_symbols.txt with BozoEngine's tools/symbolmap/bozo_symbolmap.py:
 #   match SLUS_212.16 --ref <CoN>/SLUS_205.65 --ref <CoN>/NTGUI2.ELF --reviewed recomp/sc3_symbols_reviewed.txt --out recomp/sc3_symbols.txt
+scePadEnd 0x421c18             # libpad between scePadInit and scePadPortOpen; sceSifCallRpc function 1 with command 0xf, clears libpad's init flag on success; the game's shutdown at 0x14ca10 and 0x14ce00
 scePadGetDmaStr 0x422060       # libpad order after scePadPortClose; all 10 libpad readers call it, as they call scePadGetDmaStr; constants 112, 28
 scePadRead 0x422210            # libpad order after scePadGetFrameCount; 0x422060 then memcpy to the third argument, the one game call at 0x130a4c
 scePadGetState 0x422288        # libpad order before scePadStateIntToStr; same 112, 28, 99, 6, 2, 5 loads as the reference
@@ -16,6 +17,8 @@ sceMpegDelete 0x3e1820         # the two-word return between sceMpegInit and sce
 sceMpegGetPicture 0x3e1868     # libmpeg order after sceMpegAddBs; shape 1.00, called by the movie player
 sceMpegGetPictureRAW8 0x3e18b0 # libmpeg order after sceMpegGetPicture; shape 1.00
 sceMpegReset 0x3e1908          # sceMpegCreate's call in the reference's sceMpegReset place; same -1, 1 loads
+sceCdSeek 0x425008             # libcdvd between sceCdRead and sceCdGetDiskType; sceCdNcmdDiskReady busy check, ncmd prechk 9, stores the sector, sceSifCallRpc ncmd function 5 with 4 bytes; called at 0x400394
+sceCdBreak 0x425230            # libcdvd between sceCdGetError and sceCdMmode; scmd prechk 0x1e, sceSifCallRpc scmd function 0x16 with no argument, returns the 4-byte result; called at 0x3ffa08
 sceCdReadClock 0x425438        # libcdvd; same a0 15, a1 1, t2 16 and scmd call shape as the reference, without its debug prints; called once by libscf
 sceGsSyncVCallback 0x420a00    # libgraph after sceGsExecStoreImage; 0x41fe08 for its params, func 0: DisableIntc(2), RemoveIntcHandler(2, id); else AddIntcHandler(2, func, -1), EnableIntc(2); returns the old func
 sceMcChdir 0x426b28            # libmc after mceStorePwd; the -100 and -200 guards of its neighbours, -210 on an empty path, RPC function 12 with port, slot, path up to 1023 bytes and an out buffer, reply handler mceStorePwd
