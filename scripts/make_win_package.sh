@@ -1,6 +1,6 @@
 #!/bin/bash
 # A portable folder from a Windows build tree (cmake/mingw-cross.cmake): sc3.exe, sc3-headless.exe, the symbol map and
-# the packs beside them, game/ left for the player's own SLUS_212.16 and disc image. It holds code generated from the
+# the packs beside them, game/ left for the player's own boot ELF and disc image. It holds code generated from the
 # disc and packs converted from it: it stays on the machine that built it.
 #   scripts/make_win_package.sh <build tree> <out folder>
 set -e
