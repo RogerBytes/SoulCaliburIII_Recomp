@@ -8,7 +8,7 @@
 //   source\   the SoulCaliburIII_Recomp code (scripts\sc3_build.py, BozoEngine\...)
 //   kit\      the build kit (kit\python\python.exe, the compiler...)
 //   build\    sc3_build's work folder (made here)
-//   game\     the game folder the build stages (made here): sc3.exe, SLUS_212.16, disc.iso, packs\
+//   game\     the game folder the build stages (made here): sc3.exe, the disc's ELF, disc.iso, packs\
 // The player's settings: launcher.ini in the runner's user folder (%APPDATA%\SoulCaliburIII_Recomp, or PS2X_USER_DIR), next to
 // the game's video.ini, which the Settings tab writes in the runner's format.
 //
@@ -339,7 +339,7 @@ enum class Phase
 
 struct Paths
 {
-    std::string release, source, kit, python, script, buildOut, buildLogs, game, gameExe, elf, iso;
+    std::string release, source, kit, python, script, buildOut, buildLogs, game, gameExe, iso;
     std::string releaseIni, builtFrom; // the source's release stamp, and the one of the code the game was built from
     std::string user, launcherIni, videoIni, logs, crashes;
 };
@@ -431,7 +431,6 @@ struct App
         p.buildLogs = plat::str(r / L"build" / L"logs");
         p.game = plat::str(r / L"game");
         p.gameExe = plat::str(r / L"game" / L"sc3.exe");
-        p.elf = plat::str(r / L"game" / L"SLUS_212.16");
         p.iso = plat::str(r / L"game" / L"disc.iso");
         p.releaseIni = plat::str(r / L"source" / L"release.ini");
         p.builtFrom = plat::str(r / L"game" / L"built_from.ini");
@@ -638,7 +637,14 @@ struct App
     // before the stamp existed counts as changed when the source has one.
     bool codeChanged() const { return built() && !sourceCommit.empty() && builtCommit != sourceCommit; }
 
-    bool built() const { return exists(p.gameExe) && exists(p.elf); }
+    // The game folder's ELF: the staged disc's (scripts/sc3_build.py stages one).
+    std::string elf() const
+    {
+        const std::string europe = plat::str(plat::path(p.game) / L"SCES_533.12");
+        return exists(europe) ? europe : plat::str(plat::path(p.game) / L"SLUS_212.16");
+    }
+    bool europe() const { return cfg.discRelease == "europe"; }
+    bool built() const { return exists(p.gameExe) && exists(elf()); }
     void saveConfig() { cfg.save(p.launcherIni); }
 
     std::vector<std::string> pythonArgs() const { return {"-I", "-X", "utf8", p.script}; }
@@ -692,6 +698,7 @@ struct App
         if (!ok.empty() && checker.exitCode() == 0)
         {
             cfg.disc = checkingPath; // a new disc: sc3_build's verify key changes, the rest follows
+            cfg.discRelease = ok.find("SCES") != std::string::npos ? "europe" : "usa";
             saveConfig();
             phase = Phase::Ready;
             tab = Tab::Play;
@@ -701,12 +708,13 @@ struct App
         // In plain words, with sc3_build's own message under it.
         discErrorDetail = err;
         if (err.find("boots") != std::string::npos)
-            discError = L("This disc image is another game, or another release. Only the USA disc (SLUS-21216) is supported.",
-                          "Cette image disque est un autre jeu, ou une autre version. Seul le disque américain (SLUS-21216) est "
-                          "pris en charge.");
+            discError = L("This disc image is another game, or another release. The USA disc (SLUS-21216) and the "
+                          "European disc (SCES-53312) are supported.",
+                          "Cette image disque est un autre jeu, ou une autre version. Le disque américain (SLUS-21216) et le "
+                          "disque européen (SCES-53312) sont pris en charge.");
         else if (err.find("SHA-1") != std::string::npos)
-            discError = L("This copy differs from the USA disc: modified or damaged. Make a fresh copy of your disc.",
-                          "Cette copie diffère du disque américain : modifiée ou abîmée. Refaites une copie de votre disque.");
+            discError = L("This copy differs from the original disc: modified or damaged. Make a fresh copy of your disc.",
+                          "Cette copie diffère du disque d'origine : modifiée ou abîmée. Refaites une copie de votre disque.");
         else if (err.find("does not exist") != std::string::npos)
             discError = L("This file is no longer there.", "Ce fichier n'existe plus.");
         else
@@ -852,7 +860,8 @@ struct App
         notice.clear();
         std::string error;
         // The game on BozoEngine: its ELF and disc image beside it (the packs too, found beside the ELF).
-        if (!game.start(p.gameExe, {"--elf", p.elf, "--iso", p.iso}, p.game, false, error))
+        plat::setEnv("SC3_LANGUAGE", cfg.gameLanguage.empty() ? plat::systemGameLanguage() : cfg.gameLanguage);
+        if (!game.start(p.gameExe, {"--elf", elf(), "--iso", p.iso}, p.game, false, error))
         {
             launchError = error;
             return;
@@ -965,10 +974,10 @@ static void drawWelcome(App &app, float inner)
                       "fourni : le jeu est construit ici, sur votre PC, à partir de votre disque."),
                     19, ui::color::ink, 0.92f);
     gap(2);
-    ui::textWrapped(L("You need a disc image of the USA release (SLUS-21216): a .iso, or a .bin with its .cue. "
-                      "Discs of the other regions are not supported.",
-                      "Il vous faut une image disque de la version américaine (SLUS-21216) : un .iso, ou un .bin avec "
-                      "son .cue. Les disques des autres régions ne sont pas pris en charge."),
+    ui::textWrapped(L("You need a disc image of the USA release (SLUS-21216) or the European release (SCES-53312): a .iso, "
+                      "or a .bin with its .cue. Discs of the other regions are not supported.",
+                      "Il vous faut une image disque de la version américaine (SLUS-21216) ou européenne (SCES-53312) : "
+                      "un .iso, ou un .bin avec son .cue. Les disques des autres régions ne sont pas pris en charge."),
                     19, ui::color::inkDim);
     gap(10);
     if (app.checking)
@@ -1134,7 +1143,9 @@ static void drawReady(App &app, float inner)
     {
         heading(app.cfg.buildPending ? L("Preparing was stopped", "La préparation a été interrompue")
                                      : L("Your disc is ready", "Votre disque est prêt"));
-        std::string line = std::string(L("USA disc (SLUS-21216)", "Disque américain (SLUS-21216)")) + "  \xC2\xB7  " + fileName(app.cfg.disc);
+        std::string line = std::string(app.europe() ? L("European disc (SCES-53312)", "Disque européen (SCES-53312)")
+                                                    : L("USA disc (SLUS-21216)", "Disque américain (SLUS-21216)")) +
+                           "  \xC2\xB7  " + fileName(app.cfg.disc);
         ui::text(line.c_str(), 17, ui::color::good);
         gap(4);
         ui::textWrapped(app.cfg.buildPending
@@ -1382,6 +1393,24 @@ static void drawSettings(App &app, float inner)
         ui::text(L("Saved. The game uses it the next time it starts.", "Enregistré. Le jeu l'utilisera au prochain démarrage."), 16,
                  ui::color::good);
     gap(12);
+    if (app.europe())
+    {
+        ui::text(L("Game language", "Langue du jeu"), 17, ui::color::inkFaint);
+        static const char *const codes[] = {"en", "fr", "de", "es", "it"};
+        static const char *const names[] = {"English##game", "Français##game", "Deutsch##game", "Español##game", "Italiano##game"};
+        const std::string current = app.cfg.gameLanguage.empty() ? plat::systemGameLanguage() : app.cfg.gameLanguage;
+        for (int i = 0; i < 5; ++i)
+        {
+            if (i)
+                ImGui::SameLine(0, S(8));
+            if (ui::pill(names[i], current == codes[i], 18))
+            {
+                app.cfg.gameLanguage = codes[i];
+                app.saveConfig();
+            }
+        }
+        gap(12);
+    }
     ui::text(L("Launcher", "Lanceur"), 17, ui::color::inkFaint);
     if (ui::pill("English##en", !g_fr, 18))
     {

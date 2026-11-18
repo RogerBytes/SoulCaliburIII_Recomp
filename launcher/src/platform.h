@@ -28,6 +28,8 @@ namespace plat
     void setEnv(const char *name, const std::string &value);
     // "fr" when Windows' display language is French, else "en".
     std::string systemLanguage();
+    // Windows' display language among the European disc's (en, fr, de, es, it), else "en".
+    std::string systemGameLanguage();
 
     // The native Open dialog for a disc image; "" when cancelled.
     std::string pickDiscImage(void *ownerWindow, const std::string &title, const std::string &filterName,

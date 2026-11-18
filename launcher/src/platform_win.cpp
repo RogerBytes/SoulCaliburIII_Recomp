@@ -110,6 +110,18 @@ namespace plat
         return PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_FRENCH ? "fr" : "en";
     }
 
+    std::string systemGameLanguage()
+    {
+        switch (PRIMARYLANGID(GetUserDefaultUILanguage()))
+        {
+        case LANG_FRENCH: return "fr";
+        case LANG_GERMAN: return "de";
+        case LANG_SPANISH: return "es";
+        case LANG_ITALIAN: return "it";
+        default: return "en";
+        }
+    }
+
     std::string pickDiscImage(void *ownerWindow, const std::string &title, const std::string &filterName,
                               const std::string &allFilesName)
     {
