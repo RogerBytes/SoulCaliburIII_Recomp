@@ -147,6 +147,49 @@ class RegionMapTest(unittest.TestCase):
         self.assertEqual(out.read_text().splitlines()[1:],
                          ['# REVIEW 0x10002c 0x%08x 0x%08x: the jump target has no place' % (sw(0, 0, V1), jal(0x120010))])
 
+    def write_port(self, text):
+        port = self.folder / 'port'
+        port.mkdir(exist_ok=True)
+        (port / 'a.cpp').write_text(text)
+        return port
+
+    def run_header(self, *args):
+        out = self.folder / 'sc3_region.h'
+        with redirect_stdout(StringIO()) as printed:
+            code = region.header([str(out), '--title', 'T', '--elf', 'E', *map(str, args)])
+        return code, out.read_text() if out.exists() else '', printed.getvalue()
+
+    def test_header_places_what_the_port_names(self):
+        port = self.write_port('constexpr uint32_t kA = at(0x100028u), kB = at(0x110008u);\nrecompiled<0x100028u>(r, c, t);\n')
+        reviewed, symbols = self.folder / 'reviewed.txt', self.folder / 'symbols.txt'
+        reviewed.write_text('')
+        symbols.write_text('f2 0x10002c\n')
+        code, text, _ = self.run_header('--symbols', symbols, '--map', self.map, '--reviewed', reviewed, '--sources', port)
+        self.assertEqual(code, 0)
+        self.assertIn('{0x00100028u, 0x0010002Cu},', text)
+        self.assertIn('{0x00110008u, 0x00110018u},', text)
+        self.assertIn('kMoved = true;', text)
+        self.assertIn('struct Guest<0x100028u>\n    {\n        static constexpr GuestFunction function = &::f2_0x10002c;', text)
+
+    def test_header_refuses_an_unreviewed_address_in_a_changed_function(self):
+        port = self.write_port('constexpr uint32_t kA = at(0x10001Cu);\n')
+        reviewed = self.folder / 'reviewed.txt'
+        reviewed.write_text('')
+        code, _, printed = self.run_header('--map', self.map, '--reviewed', reviewed, '--sources', port)
+        self.assertEqual(code, 1)
+        self.assertIn('0x10001c: inside 0x100018-0x100028, which changed', printed)
+        reviewed.write_text('0x10001c 0x100020  # read\n')
+        code, text, _ = self.run_header('--map', self.map, '--reviewed', reviewed, '--sources', port)
+        self.assertEqual(code, 0)
+        self.assertIn('{0x0010001Cu, 0x00100020u},', text)
+
+    def test_header_without_a_map_keeps_the_addresses(self):
+        port = self.write_port('recompiled<0x100028u>(r, c, t);\n')
+        code, text, _ = self.run_header('--sources', port)
+        self.assertEqual(code, 0)
+        self.assertIn('kMoved = false;', text)
+        self.assertIn('&::func_0x100028;', text)
+
     def test_vote_drops_a_stray_offset(self):
         pairs = [(0x120000, 0x120020), (0x120008, 0x120028), (0x120008, 0x120028), (0x120008, 0x130028),
                  (0x120040, 0x110040), (0x120080, 0x1200A0)]
