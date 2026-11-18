@@ -532,8 +532,8 @@ namespace sc3::offscreen
         if (++g_frames % 250u != 0u)
             return;
         statsLine("[sc3:offscreen] 250 frames: glows %llu; shadows: set up %llu, volumes %llu (%llu triangles, %llu dropped), darkened %llu\n", static_cast<unsigned long long>(g_glows),
-                     static_cast<unsigned long long>(g_setups), static_cast<unsigned long long>(g_volumes), static_cast<unsigned long long>(g_triangles), static_cast<unsigned long long>(g_volumesDropped),
-                     static_cast<unsigned long long>(g_darkens));
+                  static_cast<unsigned long long>(g_setups), static_cast<unsigned long long>(g_volumes), static_cast<unsigned long long>(g_triangles), static_cast<unsigned long long>(g_volumesDropped),
+                  static_cast<unsigned long long>(g_darkens));
         g_glows = g_setups = g_volumes = g_triangles = g_volumesDropped = g_darkens = 0;
     }
 

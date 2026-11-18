@@ -30,7 +30,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 - `scripts/make_release.py`, `scripts/apply_update.py` and the CI and release workflows.
 
 ### Fixed
-- Saving to the memory card no longer hangs after the icon is written, and formatting a card no longer can (#6).
+- Saving to the memory card no longer hangs after the icon is written, and neither does formatting a card (#6).
 - The draw counters printed every 250 frames are off by default (`SC3_STATS=1` turns them on); writing them to a slow
   console could hold up a frame.
 
