@@ -167,17 +167,17 @@ namespace sc3
         void callOriginal(uint32_t address, uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
             if (address == kRawPart)
-                func_0x10a178(rdram, ctx, runtime);
+                recompiled<0x10a178u>(rdram, ctx, runtime);
             else if (address == kRawPartTail)
-                func_0x109990(rdram, ctx, runtime);
+                recompiled<0x109990u>(rdram, ctx, runtime);
             else if (address == kChainPart)
-                func_0x10a4e8(rdram, ctx, runtime);
+                recompiled<0x10a4e8u>(rdram, ctx, runtime);
             else if (address == kRelocate)
-                func_0x14a7d8(rdram, ctx, runtime);
+                recompiled<0x14a7d8u>(rdram, ctx, runtime);
             else if (address == kClipper)
-                func_0x10b970(rdram, ctx, runtime);
+                recompiled<0x10b970u>(rdram, ctx, runtime);
             else
-                func_0x10b7e0(rdram, ctx, runtime);
+                recompiled<0x10b7e0u>(rdram, ctx, runtime);
         }
 
         void packetFlush(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
@@ -1524,7 +1524,7 @@ namespace sc3
         {
             const uint32_t reg = getRegU32(ctx, 4);
             const uint64_t value = getRegU32(ctx, 5) | (static_cast<uint64_t>(ctx->r[5].uw[1]) << 32);
-            func_0x1276e8(rdram, ctx, runtime);
+            recompiled<0x1276e8u>(rdram, ctx, runtime);
             if (reg == 0x4Eu)
             {
                 const bool masked = ((value >> 32) & 1u) != 0u;
@@ -1556,7 +1556,7 @@ namespace sc3
                     ++s.stats.drawsSubmitted;
             s.unflushed.clear();
             s.pendingDraws.clear();
-            func_0x10f8b8(rdram, ctx, runtime);
+            recompiled<0x10f8b8u>(rdram, ctx, runtime);
         }
 
         void linkUnflushed(uint8_t *rdram, int bucket)

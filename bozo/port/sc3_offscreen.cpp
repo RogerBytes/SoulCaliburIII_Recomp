@@ -177,7 +177,7 @@ namespace sc3::offscreen
             if (ot::hidden(at(0x00163650u)))
                 returnFrom(ctx);
             else
-                func_0x163650(rdram, ctx, runtime);
+                recompiled<0x163650u>(rdram, ctx, runtime);
         }
 
         void storeImage(uint8_t *rdram, R5900Context *ctx, Runtime *)
@@ -211,7 +211,7 @@ namespace sc3::offscreen
             glow.blurs = std::min<uint32_t>(getRegU32(ctx, 9), 16u);
             glow.reference = getRegU32(ctx, 8);
             std::fprintf(stderr, "[sc3:offscreen] glow buffer %#x: mode %#x colour %#x fix %#x reference %#x blurs %u\n", getRegU32(ctx, 4), glow.mode, glow.colour, glow.fix, glow.reference, glow.blurs);
-            func_0x1705b0(rdram, ctx, runtime);
+            recompiled<0x1705b0u>(rdram, ctx, runtime);
         }
 
         void glowBufferDraw(uint8_t *rdram, R5900Context *ctx, Runtime *runtime)
@@ -224,7 +224,7 @@ namespace sc3::offscreen
             const auto it = g_glowBuffers.find(peek32(getRegU32(ctx, 4) + 0x50u));
             if (it == g_glowBuffers.end())
             {
-                func_0x172e90(rdram, ctx, runtime);
+                recompiled<0x172e90u>(rdram, ctx, runtime);
                 return;
             }
             const Glow glow = it->second;

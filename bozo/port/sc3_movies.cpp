@@ -84,7 +84,7 @@ namespace sc3::movies
             if (movieState && readWord(runtime, movieState + 8u) == getRegU32(ctx, 4))
                 if (uint8_t *p = runtime->memory.hostPointer(movieState + 8u, 4))
                     std::memset(p, 0, 4);
-            func_0x218600(rdram, ctx, runtime);
+            recompiled<0x218600u>(rdram, ctx, runtime);
         }
 
 #ifdef SC3_HAVE_FFMPEG

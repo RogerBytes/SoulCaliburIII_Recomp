@@ -80,7 +80,7 @@ namespace sc3::frame
                 std::fprintf(stderr, "[sc3:frame] 0x1177E0 file 0x%x has no entries: index %u, packet 0x%x, ra 0x%x, frame %u, words %08x %08x %08x %08x\n", file,
                              getRegU32(ctx, 6), getRegU32(ctx, 4), getRegU32(ctx, 31), get<uint32_t>(rdram, kFrameNumber), get<uint32_t>(rdram, file),
                              get<uint32_t>(rdram, file + 4u), get<uint32_t>(rdram, file + 8u), get<uint32_t>(rdram, file + 12u));
-            func_0x1177e0(rdram, ctx, runtime);
+            recompiled<0x1177e0u>(rdram, ctx, runtime);
         }
 
         void noteField(uint8_t *rdram, PS2Runtime *runtime)
@@ -92,7 +92,7 @@ namespace sc3::frame
         {
             noteField(rdram, runtime);
             put<uint32_t>(rdram, kVblankLinesWord, clock::lines(runtime, ctx));
-            func_0x12cf38(rdram, ctx, runtime);
+            recompiled<0x12cf38u>(rdram, ctx, runtime);
         }
 
         void endOfFrame(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
@@ -111,7 +111,7 @@ namespace sc3::frame
         void initSys(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
             const uint32_t returnTo = getRegU32(ctx, 31);
-            func_0x440610(rdram, ctx, runtime);
+            recompiled<0x440610u>(rdram, ctx, runtime);
             setReturnS32(ctx, 0);
             ctx->pc = returnTo;
         }
@@ -126,7 +126,7 @@ namespace sc3::frame
                 ctx->pc = kAdxmVsyncSleepReturn;
                 return;
             }
-            func_0x3f0f10(rdram, ctx, runtime);
+            recompiled<0x3f0f10u>(rdram, ctx, runtime);
         }
 
         void gsDrainWait(uint8_t *, R5900Context *ctx, PS2Runtime *)

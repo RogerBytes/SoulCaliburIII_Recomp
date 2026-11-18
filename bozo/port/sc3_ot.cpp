@@ -94,7 +94,7 @@ namespace sc3::ot
                 ++frame.gif.current;
             else if (channel == 2u)
                 ++frame.vif[selectedVif(rdram)].current;
-            func_0x10f9d0(rdram, ctx, runtime);
+            recompiled<0x10f9d0u>(rdram, ctx, runtime);
         }
 
         // 0x10D718 (n > 0, &head, &tail): the table's layer before n, entered from the list by a NEXT the caller appends.
@@ -111,7 +111,7 @@ namespace sc3::ot
                 entry.layerEnd = place * each;
                 building(rdram).gif.add(std::move(entry));
             }
-            func_0x10d718(rdram, ctx, runtime);
+            recompiled<0x10d718u>(rdram, ctx, runtime);
         }
 
         void drawBuckets(FrameMirror &frame, bozo::render::Renderer &renderer, uint32_t first, uint32_t end)

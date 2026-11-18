@@ -341,7 +341,7 @@ namespace sc3
             setRegU32(ctx, 4, file);
             setRegU32(ctx, 31, kFileRelocateReturn);
             ctx->pc = kFileRelocate;
-            runGuest(func_0x118e18, rdram, ctx, runtime);
+            runGuest(recompiled<0x118e18u>, rdram, ctx, runtime);
             *ctx = saved;
             ++g_state.filesRelocated;
         }
@@ -1422,7 +1422,7 @@ namespace sc3
                 setRegU32(ctx, 8, t);
                 setRegU32(ctx, 31, kTextFormatReturn);
                 ctx->pc = kTextFormat;
-                runGuest(func_0x11cbc8, rdram, ctx, runtime);
+                runGuest(recompiled<0x11cbc8u>, rdram, ctx, runtime);
                 const uint32_t what = getRegU32(ctx, 2);
                 setRegU32(ctx, 29, savedSp);
                 setRegU32(ctx, 31, savedRa);
@@ -4146,7 +4146,7 @@ namespace sc3
         void gameStart(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
             prepare(rdram, runtime);
-            _start_0x100008(rdram, ctx, runtime);
+            recompiled<0x100008u>(rdram, ctx, runtime);
         }
 
         template <void (*Hook)(uint8_t *, R5900Context *, PS2Runtime *)>

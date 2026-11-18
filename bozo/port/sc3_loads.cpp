@@ -20,7 +20,7 @@ namespace sc3::loads
             textures::noteRequest(ctx);
             meshes::noteRequest(ctx);
             twoD::noteRequest(rdram, ctx, runtime);
-            func_0x150418(rdram, ctx, runtime);
+            recompiled<0x150418u>(rdram, ctx, runtime);
         }
 
         void cdRead(uint8_t *rdram, R5900Context *ctx, Runtime *runtime)
@@ -41,7 +41,7 @@ namespace sc3::loads
         {
             textures::noteCopy(rdram, ctx);
             meshes::noteCopy(rdram, ctx);
-            func_0x12fe98(rdram, ctx, runtime);
+            recompiled<0x12fe98u>(rdram, ctx, runtime);
         }
     }
 

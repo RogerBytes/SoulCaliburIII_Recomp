@@ -140,7 +140,7 @@ namespace sc3::textures
             const uint32_t ra = getRegU32(ctx, 31);
             if (ra == kTextureCall || ra == kAnimatedTextureCall)
                 noteCall(ctx, ra);
-            func_0x10f808(rdram, ctx, runtime);
+            recompiled<0x10f808u>(rdram, ctx, runtime);
         }
     }
 
