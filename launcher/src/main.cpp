@@ -637,7 +637,6 @@ struct App
     // before the stamp existed counts as changed when the source has one.
     bool codeChanged() const { return built() && !sourceCommit.empty() && builtCommit != sourceCommit; }
 
-    // The game folder's ELF: the staged disc's (scripts/sc3_build.py stages one).
     std::string elf() const
     {
         const std::string europe = plat::str(plat::path(p.game) / L"SCES_533.12");
@@ -860,7 +859,8 @@ struct App
         notice.clear();
         std::string error;
         // The game on BozoEngine: its ELF and disc image beside it (the packs too, found beside the ELF).
-        plat::setEnv("SC3_LANGUAGE", cfg.gameLanguage.empty() ? plat::systemGameLanguage() : cfg.gameLanguage);
+        const std::string language = cfg.gameLanguage.empty() ? plat::systemGameLanguage() : cfg.gameLanguage;
+        plat::setEnv("SC3_LANGUAGE", europe() ? language : std::string());
         if (!game.start(p.gameExe, {"--elf", elf(), "--iso", p.iso}, p.game, false, error))
         {
             launchError = error;
