@@ -1,4 +1,4 @@
-# Symbol map of SLUS_212.16: bozo_symbolmap.py match, 721 functions.
+# Symbol map of SLUS_212.16: bozo_symbolmap.py match, 730 functions.
 _start 0x100008
 sceMpegCreate 0x3e0bc8
 _sendDataToIPU 0x3e0e00
@@ -162,6 +162,8 @@ addhour 0x425ab0
 subhour 0x425ae0
 AdjustTime 0x425b08
 sceMcInit 0x425be8
+sceMcEnd 0x425e10
+sceMcChangeThreadPriority 0x425e78
 sceMcGetSlotMax 0x425f38
 sceMcOpen 0x425ff8
 sceMcMkdir 0x426120
@@ -176,6 +178,13 @@ sceMcUdCheckNewCard 0x4268d8
 sceMcGetDir 0x426948
 mceStorePwd 0x426a98
 sceMcChdir 0x426b28
+sceMcFormat 0x426c68
+sceMcDelete 0x426d38
+sceMcFlush 0x426e58
+sceMcSetFileInfo 0x426f18
+sceMcRename 0x4270e8
+sceMcUnformat 0x427240
+sceMcGetEntSpace 0x427310
 __muldi3 0x4274b8
 __divdi3 0x427530
 __moddi3 0x427bc8
