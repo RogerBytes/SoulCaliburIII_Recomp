@@ -190,7 +190,7 @@ namespace sc3::textures
         g_building.clear();
         if (++g_frames % 250u != 0u)
             return;
-        std::fprintf(stderr, "[sc3:textures] 250 frames: %llu upload lists called, %llu in the pack, %zu not;\n", static_cast<unsigned long long>(g_calls),
+        statsLine("[sc3:textures] 250 frames: %llu upload lists called, %llu in the pack, %zu not;\n", static_cast<unsigned long long>(g_calls),
                      static_cast<unsigned long long>(g_packed), g_unknownCalls.size());
         g_calls = g_packed = 0;
         g_unknownCalls.clear();

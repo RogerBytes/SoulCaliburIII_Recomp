@@ -1,6 +1,10 @@
 #include "sc3_draw.h"
 #include "sc3_port.h"
 
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+
 namespace
 {
     void applySc3(sc3::Registry &runtime)
@@ -16,6 +20,17 @@ namespace
         sc3::movies::install(runtime);
         sc3::audio::install(runtime);
     }
+}
+
+void sc3::statsLine(const char *format, ...)
+{
+    static const bool enabled = [] { const char *v = std::getenv("SC3_STATS"); return v != nullptr && *v != '\0' && *v != '0'; }();
+    if (!enabled)
+        return;
+    va_list args;
+    va_start(args, format);
+    std::vfprintf(stderr, format, args);
+    va_end(args);
 }
 
 void sc3::shutdown()

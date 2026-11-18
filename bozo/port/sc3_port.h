@@ -59,6 +59,8 @@ namespace sc3
         void shutdown();
     }
     namespace audio { void install(Registry &runtime); }
+    // The subsystems' counters every 250 frames, in the log only with SC3_STATS=1.
+    void statsLine(const char *format, ...);
     // After the game's last frame, while the renderer still exists: players stopped, every texture and draw the port keeps released.
     void shutdown();
 }

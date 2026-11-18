@@ -1621,7 +1621,7 @@ namespace sc3
                               static_cast<unsigned>((tex0 >> 37) & 0x3FFFu), static_cast<unsigned long long>(n));
                 miss += item;
             }
-            std::fprintf(stderr, "[sc3:mesh] 250 frames: parts %llu native %llu (triangles %llu), chain parts %llu native %llu, LOST %llu (not in the pack %llu, chain %llu, no material %llu, no texture %llu, routine %llu), dropped for the packs %llu; clipped %llu native %llu dropped %llu; drawn %llu; leaves bound %llu (not the pack's %llu), copies %llu;%s;%s\n",
+            statsLine("[sc3:mesh] 250 frames: parts %llu native %llu (triangles %llu), chain parts %llu native %llu, LOST %llu (not in the pack %llu, chain %llu, no material %llu, no texture %llu, routine %llu), dropped for the packs %llu; clipped %llu native %llu dropped %llu; drawn %llu; leaves bound %llu (not the pack's %llu), copies %llu;%s;%s\n",
                          static_cast<unsigned long long>(t.parts), static_cast<unsigned long long>(t.native), static_cast<unsigned long long>(t.triangles),
                          static_cast<unsigned long long>(t.chainParts), static_cast<unsigned long long>(t.chainNative), static_cast<unsigned long long>(t.leftToVu1),
                          static_cast<unsigned long long>(t.notInPack), static_cast<unsigned long long>(t.chainNotInPack), static_cast<unsigned long long>(t.noMaterial),
@@ -1635,9 +1635,9 @@ namespace sc3
                 drawn += item;
             }
             if (!drawn.empty())
-                std::fprintf(stderr, "[sc3:mesh] 250 frames: parts drawn by routine%s\n", drawn.c_str());
+                statsLine("[sc3:mesh] 250 frames: parts drawn by routine%s\n", drawn.c_str());
             if (t.mipOwn + t.mipMade != 0u)
-                std::fprintf(stderr, "[sc3:mesh] 250 frames: mipmapped parts %llu, the game's own levels %llu, made from level 0 %llu\n",
+                statsLine("[sc3:mesh] 250 frames: mipmapped parts %llu, the game's own levels %llu, made from level 0 %llu\n",
                              static_cast<unsigned long long>(t.mipOwn + t.mipMade), static_cast<unsigned long long>(t.mipOwn), static_cast<unsigned long long>(t.mipMade));
             const uint64_t bound = t.bound, bad = t.boundBad;
             t = Stats{};
