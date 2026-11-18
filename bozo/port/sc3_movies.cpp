@@ -39,14 +39,14 @@ namespace sc3::movies
 {
     namespace
     {
-        constexpr uint32_t kMwPlyCreate = 0x003AA698u;
-        constexpr uint32_t kMwPlyDestroy = 0x003AAC38u;
-        constexpr uint32_t kMwPlyPause = 0x003AD8F0u;
-        constexpr uint32_t kMwPlyIsPause = 0x003AD300u;
+        constexpr uint32_t kMwPlyCreate = at(0x003AA698u);
+        constexpr uint32_t kMwPlyDestroy = at(0x003AAC38u);
+        constexpr uint32_t kMwPlyPause = at(0x003AD8F0u);
+        constexpr uint32_t kMwPlyIsPause = at(0x003AD300u);
         // Set on a decoder the game never gets: its volume, an output setting, a memory area, a frame's information.
-        constexpr uint32_t kMwPlyDecoderSettings[] = {0x003AEF20u, 0x003B0178u, 0x003A8A98u, 0x003B3AD0u};
+        constexpr uint32_t kMwPlyDecoderSettings[] = {at(0x003AEF20u), at(0x003B0178u), at(0x003A8A98u), at(0x003B3AD0u)};
 
-        constexpr uint32_t kMwPlySlots = 0x0054D6C4u;
+        constexpr uint32_t kMwPlySlots = at(0x0054D6C4u);
         constexpr uint32_t kMwPlySlotCount = 8u;
         constexpr uint32_t kMwPlySlotSize = 0x304u;
         constexpr uint32_t kMwPlyParameters = 0x08u;
@@ -54,19 +54,19 @@ namespace sc3::movies
         constexpr uint32_t kMwPlyPaused = 0x40u;
         constexpr uint32_t kMwPlyLastEntry = 0x2FCu;
         constexpr uint32_t kFrameObjectSize = 0x90u;
-        constexpr uint32_t kMwPlyStartAfs = 0x003ADA20u;
-        constexpr uint32_t kMwPlyStartAfsLp = 0x003B1698u;
-        constexpr uint32_t kMwPlyGetCurFrm = 0x003AB630u;
-        constexpr uint32_t kMwPlyRelCurFrm = 0x003ABF50u;
-        constexpr uint32_t kMwPlyIsNextFrmReady = 0x003AC008u;
-        constexpr uint32_t kMwPlyStop = 0x003AD870u;
-        constexpr uint32_t kMwPlyStarts[] = {0x003AD4B0u, 0x003AD5E8u, 0x003AD6E8u, 0x003ADA20u, 0x003ADBD0u,
-                                             0x003B1328u, 0x003B1428u, 0x003B1698u, 0x003B17E0u, 0x003B2DF0u};
-        constexpr uint32_t kMwPlyGetStat = 0x003AE9F8u;
+        constexpr uint32_t kMwPlyStartAfs = at(0x003ADA20u);
+        constexpr uint32_t kMwPlyStartAfsLp = at(0x003B1698u);
+        constexpr uint32_t kMwPlyGetCurFrm = at(0x003AB630u);
+        constexpr uint32_t kMwPlyRelCurFrm = at(0x003ABF50u);
+        constexpr uint32_t kMwPlyIsNextFrmReady = at(0x003AC008u);
+        constexpr uint32_t kMwPlyStop = at(0x003AD870u);
+        constexpr uint32_t kMwPlyStarts[] = {at(0x003AD4B0u), at(0x003AD5E8u), at(0x003AD6E8u), at(0x003ADA20u), at(0x003ADBD0u),
+                                             at(0x003B1328u), at(0x003B1428u), at(0x003B1698u), at(0x003B17E0u), at(0x003B2DF0u)};
+        constexpr uint32_t kMwPlyGetStat = at(0x003AE9F8u);
         constexpr int32_t kMwPlyStatPlayEnd = 3;
-        constexpr uint32_t kMoviePlayStat = 0x003AE988u;
+        constexpr uint32_t kMoviePlayStat = at(0x003AE988u);
         constexpr int32_t kMoviePlayStatFinished = 4;
-        constexpr uint32_t kMovieTaskEnd = 0x00218600u;
+        constexpr uint32_t kMovieTaskEnd = at(0x00218600u);
         constexpr uint32_t kMovieStatePointer = 0x70000030u;
 
         uint32_t readWord(PS2Runtime *runtime, uint32_t address)

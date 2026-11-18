@@ -12,27 +12,27 @@ namespace sc3::frame
 {
     namespace
     {
-        constexpr uint32_t kGsDrainWait = 0x00127778u;
-        constexpr uint32_t kFrameKick = 0x0010F098u;
-        constexpr uint32_t kOtWalk = 0x0010E4B8u;
-        constexpr uint32_t kOtWalkByGroup = 0x0010E5C8u;
-        constexpr uint32_t kDmaInit = 0x0010C890u;
-        constexpr uint32_t kElapsedLines = 0x00148098u;
-        constexpr uint32_t kFrameEndReturn = 0x0012EA90u;
-        constexpr uint32_t kAdxmVsyncSleep = 0x003F0F10u;
-        constexpr uint32_t kAdxmVsyncSleepReturn = 0x003F0F60u;
-        constexpr uint32_t kMovieFrameWaitReturn = 0x0012E654u;
-        constexpr uint32_t kGsExecStoreImage = 0x00420370u;
-        constexpr uint32_t kPadSetCallback = 0x00422F20u;
-        constexpr uint32_t kPadCallback = 0x00576DD8u;
-        constexpr uint32_t kFromScratchpad = 0x0010CF10u;
-        constexpr uint32_t kFromScratchpadStop = 0x0010CF88u;
-        constexpr uint32_t kToScratchpadWait = 0x0010CFC8u;
-        constexpr uint32_t kToScratchpad = 0x0010CFF8u;
-        constexpr uint32_t kSetDisplay = 0x00127908u;
-        constexpr uint32_t kSetDisplayFields = 0x00127980u;
-        constexpr uint32_t kVblankHandler = 0x0012CF38u;
-        constexpr uint32_t kFileUpload = 0x001177E0u;
+        constexpr uint32_t kGsDrainWait = at(0x00127778u);
+        constexpr uint32_t kFrameKick = at(0x0010F098u);
+        constexpr uint32_t kOtWalk = at(0x0010E4B8u);
+        constexpr uint32_t kOtWalkByGroup = at(0x0010E5C8u);
+        constexpr uint32_t kDmaInit = at(0x0010C890u);
+        constexpr uint32_t kElapsedLines = at(0x00148098u);
+        constexpr uint32_t kFrameEndReturn = at(0x0012EA90u);
+        constexpr uint32_t kAdxmVsyncSleep = at(0x003F0F10u);
+        constexpr uint32_t kAdxmVsyncSleepReturn = at(0x003F0F60u);
+        constexpr uint32_t kMovieFrameWaitReturn = at(0x0012E654u);
+        constexpr uint32_t kGsExecStoreImage = at(0x00420370u);
+        constexpr uint32_t kPadSetCallback = at(0x00422F20u);
+        constexpr uint32_t kPadCallback = at(0x00576DD8u);
+        constexpr uint32_t kFromScratchpad = at(0x0010CF10u);
+        constexpr uint32_t kFromScratchpadStop = at(0x0010CF88u);
+        constexpr uint32_t kToScratchpadWait = at(0x0010CFC8u);
+        constexpr uint32_t kToScratchpad = at(0x0010CFF8u);
+        constexpr uint32_t kSetDisplay = at(0x00127908u);
+        constexpr uint32_t kSetDisplayFields = at(0x00127980u);
+        constexpr uint32_t kVblankHandler = at(0x0012CF38u);
+        constexpr uint32_t kFileUpload = at(0x001177E0u);
 
         // Where recomp/sc3_patches.txt points the game's CSR FIELD reads: the kernel's unused pages, below the image.
         constexpr uint32_t kFieldWord = 0x000FFFF0u;
@@ -40,21 +40,21 @@ namespace sc3::frame
         constexpr uint32_t kVblankLinesWord = 0x000FFFF8u;
 
         // VIF0, VIF1 and GIF: wait, sends and stops of the driver at 0x10C9D0-0x10CED0.
-        constexpr uint32_t kChannelDriver[] = {0x0010C9D0u, 0x0010CA00u, 0x0010CA78u, 0x0010CAE0u,
-                                               0x0010CB20u, 0x0010CB50u, 0x0010CBC8u, 0x0010CC40u, 0x0010CCA8u, 0x0010CCE0u, 0x0010CD48u,
-                                               0x0010CD88u, 0x0010CDB8u, 0x0010CE30u, 0x0010CE98u, 0x0010CED0u};
+        constexpr uint32_t kChannelDriver[] = {at(0x0010C9D0u), at(0x0010CA00u), at(0x0010CA78u), at(0x0010CAE0u),
+                                               at(0x0010CB20u), at(0x0010CB50u), at(0x0010CBC8u), at(0x0010CC40u), at(0x0010CCA8u), at(0x0010CCE0u), at(0x0010CD48u),
+                                               at(0x0010CD88u), at(0x0010CDB8u), at(0x0010CE30u), at(0x0010CE98u), at(0x0010CED0u)};
 
-        constexpr uint32_t kInitSys = 0x00440860u;
+        constexpr uint32_t kInitSys = at(0x00440860u);
 
-        constexpr uint32_t kRenderer = 0x005BE700u;
-        constexpr uint32_t kFrameLists = 0x004674C0u;
-        constexpr uint32_t kFinishFlag = 0x0046E5CEu;
-        constexpr uint32_t kOverBudget = 0x0046E5DCu;
-        constexpr uint32_t kFrameSkipped = 0x0046E5DDu;
-        constexpr uint32_t kFrameNumber = 0x0046E608u;
-        constexpr uint32_t kFinishCount = 0x0046E60Cu;
-        constexpr uint32_t kSignals = 0x00467494u;
-        constexpr uint32_t kKickedFrameNumber = 0x0047100Cu;
+        constexpr uint32_t kRenderer = at(0x005BE700u);
+        constexpr uint32_t kFrameLists = at(0x004674C0u);
+        constexpr uint32_t kFinishFlag = at(0x0046E5CEu);
+        constexpr uint32_t kOverBudget = at(0x0046E5DCu);
+        constexpr uint32_t kFrameSkipped = at(0x0046E5DDu);
+        constexpr uint32_t kFrameNumber = at(0x0046E608u);
+        constexpr uint32_t kFinishCount = at(0x0046E60Cu);
+        constexpr uint32_t kSignals = at(0x00467494u);
+        constexpr uint32_t kKickedFrameNumber = at(0x0047100Cu);
 
         bool g_frameOpen = false;
         bozo::app::FramePacer g_pacer;

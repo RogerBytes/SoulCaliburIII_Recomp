@@ -17,6 +17,9 @@ namespace sc3
 {
     using Registry = bozo::port::Registry;
 
+    // An address of SLUS_212.16, where it lives in the executable this build is for.
+    consteval uint32_t at(uint32_t ntsc) { return ntsc; }
+
     constexpr uint32_t kEntry = 0x100008u;
 
     namespace frame

@@ -11,7 +11,7 @@ import re
 import sys
 from pathlib import Path
 
-CONST = re.compile(r'\b(k[A-Z0-9]\w*)\s*=\s*(0x[0-9A-Fa-f]+)u?\b')
+CONST = re.compile(r'\b(k[A-Z0-9]\w*)\s*=\s*(?:at\()?(0x[0-9A-Fa-f]+)u?\b')
 ARRAY = re.compile(r'\b(k[A-Z0-9]\w*)\[\]\s*=\s*\{([^}]*)\}')
 LOOP = re.compile(r'for\s*\(\s*uint32_t\s+(\w+)\s*:\s*(k\w+)\s*\)')
 REGISTER = re.compile(r'registerFunction\(\s*([^,]+?)\s*,')
@@ -33,7 +33,7 @@ def main():
     overrides, stores, native, errors = {}, {}, {}, []
 
     def resolve(f, expr):
-        expr = expr.strip()
+        expr = re.sub(r'^at\((.*)\)$', r'\1', expr.strip())
         if re.fullmatch(r'0x[0-9A-Fa-f]+u?', expr):
             return int(expr.rstrip('u'), 16)
         if expr in perFile[f]:

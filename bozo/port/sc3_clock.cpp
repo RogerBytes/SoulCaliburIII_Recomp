@@ -13,14 +13,14 @@ namespace sc3::clock
 
     namespace
     {
-        constexpr uint32_t kLines = 0x0012D0D8u;
-        constexpr uint32_t kFrameClock = 0x0012D0E8u;
-        constexpr uint32_t kFrameClockRestart = 0x0010E910u;
-        constexpr uint32_t kFrameClockSet = 0x0010E920u;
-        constexpr uint32_t kLinesSinceMark = 0x001480D0u;
+        constexpr uint32_t kLines = at(0x0012D0D8u);
+        constexpr uint32_t kFrameClock = at(0x0012D0E8u);
+        constexpr uint32_t kFrameClockRestart = at(0x0010E910u);
+        constexpr uint32_t kFrameClockSet = at(0x0010E920u);
+        constexpr uint32_t kLinesSinceMark = at(0x001480D0u);
 
-        constexpr uint32_t kLineMarks = 0x00469234u;
-        constexpr uint32_t kFrameClockHigh = 0x00469248u;
+        constexpr uint32_t kLineMarks = at(0x00469234u);
+        constexpr uint32_t kFrameClockHigh = at(0x00469248u);
         constexpr uint32_t kCountMask = 0xFFFFu;
         constexpr uint64_t kFrameClockTick = 512u;
 

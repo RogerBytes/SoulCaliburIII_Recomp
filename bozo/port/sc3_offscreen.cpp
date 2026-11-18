@@ -16,16 +16,16 @@ namespace sc3::offscreen
 {
     namespace
     {
-        constexpr uint32_t kStoreImage = 0x0013BDF0u;
+        constexpr uint32_t kStoreImage = at(0x0013BDF0u);
         constexpr float kOffsetX = 2048.0f - 320.0f - 0.5f, kOffsetY = 2048.0f - 224.0f - 0.5f;
-        constexpr uint32_t kGlowLayerEnd = 0x001725C0u, kGlowBufferBuild = 0x001705B0u, kGlowBufferDraw = 0x00172E90u;
+        constexpr uint32_t kGlowLayerEnd = at(0x001725C0u), kGlowBufferBuild = at(0x001705B0u), kGlowBufferDraw = at(0x00172E90u);
         constexpr uint8_t kHalf = kGlowHalf, kQuarter = 2u, kBlur = 3u;
 
-        constexpr uint32_t kShadowSetup = 0x001F70E0u, kShadowVolumes = 0x001F8598u, kShadowResolve = 0x001F7530u, kShadowDarken = 0x001F6C48u;
-        constexpr uint32_t kEnvSlot = 0x00144198u, kColourLerp = 0x00102FA0u, kColourBytes = 0x0011AAF8u, kMatrixMul = 0x00101058u;
-        constexpr uint32_t kShadowFlags = 0x004F8403u, kShadowWanted = 0x004F8402u, kGame = 0x0046DB10u, kView = 0x0046DA88u;
+        constexpr uint32_t kShadowSetup = at(0x001F70E0u), kShadowVolumes = at(0x001F8598u), kShadowResolve = at(0x001F7530u), kShadowDarken = at(0x001F6C48u);
+        constexpr uint32_t kEnvSlot = at(0x00144198u), kColourLerp = at(0x00102FA0u), kColourBytes = at(0x0011AAF8u), kMatrixMul = at(0x00101058u);
+        constexpr uint32_t kShadowFlags = at(0x004F8403u), kShadowWanted = at(0x004F8402u), kGame = at(0x0046DB10u), kView = at(0x0046DA88u);
         constexpr uint32_t kSpr = 0x70000000u;
-        constexpr uint32_t kDisplay = 0x00469234u, kDisplayCopy = 0x00141C80u;
+        constexpr uint32_t kDisplay = at(0x00469234u), kDisplayCopy = at(0x00141C80u);
         constexpr float kFadeOn = 1.0f / 255.0f;
 
         uint32_t load32(const uint8_t *rdram, uint32_t address)
@@ -157,7 +157,7 @@ namespace sc3::offscreen
             glow.fix = getRegU32(ctx, 6);
             glow.blurs = std::min<uint32_t>(getRegU32(ctx, 8), 16u);
             uint32_t each;
-            std::memcpy(&each, rdram + 0x005BE764u, 4);
+            std::memcpy(&each, rdram + at(0x005BE764u), 4);
             ++g_glows;
             if (ot::linkLayerBucket(rdram, static_cast<int>(each) - 1, [glow](bozo::render::Renderer &renderer) { drawGlow(renderer, glow); }))
             {
@@ -174,7 +174,7 @@ namespace sc3::offscreen
 
         void sunFlare(uint8_t *rdram, R5900Context *ctx, Runtime *runtime)
         {
-            if (ot::hidden(0x00163650u))
+            if (ot::hidden(at(0x00163650u)))
                 returnFrom(ctx);
             else
                 func_0x163650(rdram, ctx, runtime);
@@ -229,7 +229,7 @@ namespace sc3::offscreen
             }
             const Glow glow = it->second;
             ++g_glows;
-            ot::linkLayerBucket(rdram, static_cast<int>(peek32(0x005BE764u)) - 1, [glow](bozo::render::Renderer &renderer) { drawGlow(renderer, glow); });
+            ot::linkLayerBucket(rdram, static_cast<int>(peek32(at(0x005BE764u))) - 1, [glow](bozo::render::Renderer &renderer) { drawGlow(renderer, glow); });
             returnFrom(ctx);
         }
 
@@ -261,13 +261,13 @@ namespace sc3::offscreen
                 taskDone();
                 return;
             }
-            if (peek<uint8_t>(kGame + 0xACBu) != 0u || peek32(peek32(0x00470BF0u) + 0x158u) == 0u)
+            if (peek<uint8_t>(kGame + 0xACBu) != 0u || peek32(peek32(at(0x00470BF0u)) + 0x158u) == 0u)
                 poke<uint8_t>(kShadowFlags, flags | 4u);
             if (peek32(peek32(kSpr + 0x24u) + 0x40u) == 0u)
             {
                 flags = peek<uint8_t>(kShadowFlags);
-                uint32_t which = peek32(0x004B487Cu) == 0u ? 1u : 0u;
-                if (peek32(0x004D1FFCu) == 0u)
+                uint32_t which = peek32(at(0x004B487Cu)) == 0u ? 1u : 0u;
+                if (peek32(at(0x004D1FFCu)) == 0u)
                     which |= 2u;
                 if ((flags & 4u) == 0u)
                 {
@@ -419,7 +419,7 @@ namespace sc3::offscreen
         void shadowDarken(uint8_t *rdram, R5900Context *ctx, Runtime *runtime)
         {
             returnFrom(ctx);
-            if (peek<uint8_t>(kGame + 0xACBu) != 0u || peek32(peek32(0x00470BF0u) + 0x158u) == 0u)
+            if (peek<uint8_t>(kGame + 0xACBu) != 0u || peek32(peek32(at(0x00470BF0u)) + 0x158u) == 0u)
                 return;
             const uint8_t flags = peek<uint8_t>(kShadowFlags);
             if (flags == 0u)
@@ -429,7 +429,7 @@ namespace sc3::offscreen
             }
             if (flags & 4u)
                 return;
-            const uint32_t slots = peek32(0x00470BF4u);
+            const uint32_t slots = peek32(at(0x00470BF4u));
             const auto slot = [&](uint32_t which) { return slots + callGame(kEnvSlot, rdram, ctx, runtime, {which}) * 16u + 0x1510u; };
             const auto copy16 = [&](uint32_t from, uint32_t to)
             {
@@ -470,7 +470,7 @@ namespace sc3::offscreen
             const uint32_t colour = callGame(kColourBytes, rdram, ctx, runtime, {mixed}, 255.0f);
             setRegU32(ctx, 29, sp + 0x60u);
             ++g_darkens;
-            if (ot::hidden(0x001F6C48u))
+            if (ot::hidden(at(0x001F6C48u)))
                 return;
             ot::appendGif(rdram, [colour](bozo::render::Renderer &renderer)
                           {
@@ -551,6 +551,6 @@ namespace sc3::offscreen
         runtime.registerFunction(kGlowLayerEnd, &hooked<glowLayerEnd>);
         runtime.registerFunction(kGlowBufferBuild, &hooked<glowBufferBuild>);
         runtime.registerFunction(kGlowBufferDraw, &hooked<glowBufferDraw>);
-        runtime.registerFunction(0x00163650u, &hooked<sunFlare>);
+        runtime.registerFunction(at(0x00163650u), &hooked<sunFlare>);
     }
 }

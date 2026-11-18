@@ -20,9 +20,9 @@ namespace sc3::ot
 {
     namespace
     {
-        constexpr uint32_t kRenderer = 0x005BE700u; // +0 frame not built, +0x38 frame being built, +0x50 the layer's table, +0x54 the table, +0x62 layers, +0x64 buckets a layer, +0x80 the frame the kick sends
-        constexpr uint32_t kSyncPoint = 0x0010F9D0u;
-        constexpr uint32_t kSetLayer = 0x0010D718u;
+        constexpr uint32_t kRenderer = at(0x005BE700u); // +0 frame not built, +0x38 frame being built, +0x50 the layer's table, +0x54 the table, +0x62 layers, +0x64 buckets a layer, +0x80 the frame the kick sends
+        constexpr uint32_t kSyncPoint = at(0x0010F9D0u);
+        constexpr uint32_t kSetLayer = at(0x0010D718u);
         constexpr uint32_t kBuckets = 0x2000u;
 
         uint32_t word(const uint8_t *rdram, uint32_t address)

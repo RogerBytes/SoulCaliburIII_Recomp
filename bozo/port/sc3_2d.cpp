@@ -32,30 +32,30 @@ namespace sc3
     {
         using namespace sc3::draw;
         using namespace sc3::fp;
-        constexpr uint32_t kFrameKick = 0x0010F098u;
-        constexpr uint32_t kFileRequest = 0x00150418u;
-        constexpr uint32_t kCdRead = 0x00424E28u;
+        constexpr uint32_t kFrameKick = at(0x0010F098u);
+        constexpr uint32_t kFileRequest = at(0x00150418u);
+        constexpr uint32_t kCdRead = at(0x00424E28u);
         // The movie task's copy of a picture into a texture file's pixels (handle, frame, pixels, flags) and the pointer
         // of a file's upload to those pixels (pixels, file, call, page).
-        constexpr uint32_t kMovieCopy = 0x00217E28u, kFilePixels = 0x00118B68u;
+        constexpr uint32_t kMovieCopy = at(0x00217E28u), kFilePixels = at(0x00118B68u);
         constexpr uint64_t kMovieKey = 1ull << 63;
         constexpr uint32_t kGlowPage = 0x2C40u;
         constexpr uint32_t kMovieSlots = 3u; // pictures a draw may still be waiting to use from the GS thread
-        constexpr uint32_t kGameStart = 0x00100008u;
-        constexpr uint32_t kLabels = 0x001388E8u;
-        constexpr uint32_t kTriangle = 0x00124C80u;
-        constexpr uint32_t kInsertMode = 0x00468CB0u; // 0x120978's mode
+        constexpr uint32_t kGameStart = at(0x00100008u);
+        constexpr uint32_t kLabels = at(0x001388E8u);
+        constexpr uint32_t kTriangle = at(0x00124C80u);
+        constexpr uint32_t kInsertMode = at(0x00468CB0u); // 0x120978's mode
         // Where 2D packets join the frame: the 2D insertion dispatcher (by the mode at 0x468CB0), fixed OT buckets, the
         // text layers' buckets, and the in-order GIF list.
-        constexpr uint32_t kInserts[] = {0x00120978u, 0x0010DDF8u, 0x0010DF30u, 0x0010E068u, 0x0010E1C8u, 0x0010E368u,
-                                         0x0010D9A0u, 0x0010DC90u, 0x0010E1F8u, 0x0010D2F0u, 0x001132A8u};
+        constexpr uint32_t kInserts[] = {at(0x00120978u), at(0x0010DDF8u), at(0x0010DF30u), at(0x0010E068u), at(0x0010E1C8u), at(0x0010E368u),
+                                         at(0x0010D9A0u), at(0x0010DC90u), at(0x0010E1F8u), at(0x0010D2F0u), at(0x001132A8u)};
 
-        constexpr uint32_t kRenderer = 0x005BE700u;   // +0 frame not built, +0x2c heap qwords used, +0x30 heap cursor, +0x54 the OT
-        constexpr uint32_t kOtLayerBase = 0x00467490u; // bucket offset of the current layer
-        constexpr uint32_t kOtGroups = 0x00467488u;    // 64 bits: the 128-bucket groups with packets
-        constexpr uint32_t k2d = 0x005BEDD0u;          // +0x4c the 2D texture file, +0x68 the 2D depth
-        constexpr uint32_t kAlphaTable = 0x0046EFD8u;
-        constexpr uint32_t kView = 0x0046DA88u;        // +0x460 the 2D view matrix
+        constexpr uint32_t kRenderer = at(0x005BE700u);   // +0 frame not built, +0x2c heap qwords used, +0x30 heap cursor, +0x54 the OT
+        constexpr uint32_t kOtLayerBase = at(0x00467490u); // bucket offset of the current layer
+        constexpr uint32_t kOtGroups = at(0x00467488u);    // 64 bits: the 128-bucket groups with packets
+        constexpr uint32_t k2d = at(0x005BEDD0u);          // +0x4c the 2D texture file, +0x68 the 2D depth
+        constexpr uint32_t kAlphaTable = at(0x0046EFD8u);
+        constexpr uint32_t kView = at(0x0046DA88u);        // +0x460 the 2D view matrix
         constexpr uint32_t kView2dMatrix = 0x460u, kView3dMatrix = 0x448u; // the view's matrix slots
         constexpr uint32_t kScratchpad = 0x70000000u;
         constexpr uint32_t kSector = 2048u;
@@ -330,7 +330,7 @@ namespace sc3
 
         // 0x118E18 (a0 -> texture file): byte 0 2 or 3 marks a file not relocated yet (its tables are offsets); it relocates
         // the tables, then byte 0 = 0 and byte 3 the old kind. The upload of an item (0x117A38) runs it first.
-        constexpr uint32_t kFileRelocate = 0x00118E18u, kFileRelocateReturn = 0x00117A80u;
+        constexpr uint32_t kFileRelocate = at(0x00118E18u), kFileRelocateReturn = at(0x00117A80u);
 
         void relocateItemFile(uint32_t item, uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
@@ -874,22 +874,22 @@ namespace sc3
             std::vector<TextPacket> packets; // inserted, in the order the game inserts them
         };
 
-        constexpr uint32_t kText = 0x0011EA80u;
-        constexpr uint32_t kTextFormat = 0x0011CBC8u;
-        constexpr uint32_t kTextFormatReturn = 0x0011ED0Cu; // where 0x11EA80 returns from it
-        constexpr uint32_t kTextState = 0x00468540u;
+        constexpr uint32_t kText = at(0x0011EA80u);
+        constexpr uint32_t kTextFormat = at(0x0011CBC8u);
+        constexpr uint32_t kTextFormatReturn = at(0x0011ED0Cu); // where 0x11EA80 returns from it
+        constexpr uint32_t kTextState = at(0x00468540u);
         constexpr uint32_t kTextStateSize = 0x68u;
-        constexpr uint32_t kTextGlobals = 0x00468400u, kTextGlobalsSize = 0xC00u; // the state and the formatter's tables around it
-        constexpr uint32_t kFontFile = 0x004763B0u;
-        constexpr uint32_t kFontDescs = 0x005BE840u;   // 28 bytes a font
-        constexpr uint32_t kFontSt = 0x00468648u;      // per font: a glyph's two ST words, 16 bytes a code
-        constexpr uint32_t kFontKerning = 0x004684A8u; // per font: two bytes a code (offset * 16, advance)
-        constexpr uint32_t kGlyphShift = 0x00468A60u;  // a byte a code: > 0 raised, < 0 lowered by the state's offset
-        constexpr uint32_t kAccents = 0x00467848u;     // pointer: the accent drawn over codes 0xC0 and up
-        constexpr uint32_t kTextTex2 = 0x005BE8E8u;    // TEX2_2 by font * 16 + colour
-        constexpr uint32_t kTextAlphas = 0x004685C0u;  // ALPHA_2 by the state's byte 5
-        constexpr uint32_t kScreenMode = 0x00469230u;  // pointer: +0x50 non-zero, widths scaled
-        constexpr uint32_t kInsertText = 0x0010DF30u, kInsertLayer = 0x0010E068u, kInsertList = 0x0010E1C8u;
+        constexpr uint32_t kTextGlobals = at(0x00468400u), kTextGlobalsSize = 0xC00u; // the state and the formatter's tables around it
+        constexpr uint32_t kFontFile = at(0x004763B0u);
+        constexpr uint32_t kFontDescs = at(0x005BE840u);   // 28 bytes a font
+        constexpr uint32_t kFontSt = at(0x00468648u);      // per font: a glyph's two ST words, 16 bytes a code
+        constexpr uint32_t kFontKerning = at(0x004684A8u); // per font: two bytes a code (offset * 16, advance)
+        constexpr uint32_t kGlyphShift = at(0x00468A60u);  // a byte a code: > 0 raised, < 0 lowered by the state's offset
+        constexpr uint32_t kAccents = at(0x00467848u);     // pointer: the accent drawn over codes 0xC0 and up
+        constexpr uint32_t kTextTex2 = at(0x005BE8E8u);    // TEX2_2 by font * 16 + colour
+        constexpr uint32_t kTextAlphas = at(0x004685C0u);  // ALPHA_2 by the state's byte 5
+        constexpr uint32_t kScreenMode = at(0x00469230u);  // pointer: +0x50 non-zero, widths scaled
+        constexpr uint32_t kInsertText = at(0x0010DF30u), kInsertLayer = at(0x0010E068u), kInsertList = at(0x0010E1C8u);
         constexpr uint32_t kPacketLimit = 0x1F40u;
         constexpr uint64_t kGlyphTag = 0x6400000000008000ull, kGlyphRegs = 0x42C120ull;
 
@@ -1636,7 +1636,7 @@ namespace sc3
         // ---- 0x123340 (a0 -> the corner (x, y, z, w), a1 RGBA, a2 ALPHA_2 (0: 0x2A, alpha byte 0x80), f12 / f13 the size):
         // an untextured blended sprite (PRIM 0x246), inserted through 0x120978 at the corners' mean Q times w (-w when w < 0)
 
-        constexpr uint32_t kQuad = 0x00123340u;
+        constexpr uint32_t kQuad = at(0x00123340u);
 
         void quad(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
@@ -1688,7 +1688,7 @@ namespace sc3
         // ---- 0x1223D0 (a0 / a1 -> the ends as packed XYZ2 quadwords, a2 RGBA, a3 ALPHA_2, f12 the depth): one
         // antialiased blended line (PRIM 0x2C1), inserted through 0x120978
 
-        constexpr uint32_t kLine = 0x001223D0u;
+        constexpr uint32_t kLine = at(0x001223D0u);
 
         void line(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
@@ -1736,7 +1736,7 @@ namespace sc3
         // ---- 0x1220C0 (a0 / a1 -> the ends as packed XYZ2 quadwords, a2 / a3 their RGBAQ quadwords, t0 ALPHA_2, f12 the
         // depth): one antialiased Gouraud-shaded blended line (PRIM 0x2C9), inserted through 0x120978
 
-        constexpr uint32_t kShadedLine = 0x001220C0u;
+        constexpr uint32_t kShadedLine = at(0x001220C0u);
 
         void shadedLine(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
@@ -1782,12 +1782,12 @@ namespace sc3
         // sprite of the menu icons' file (in the ELF at 0x4AF170, page 0) into bucket 0x1FF2. Icons 0x12 and up (another
         // builder, 0x127AD8) and the first call (the file's set-up, 0x128038) are the game's.
 
-        constexpr uint32_t kIcon = 0x001280F8u;
-        constexpr uint32_t kIconFile = 0x004AF170u;
-        constexpr uint32_t kIconSt = 0x005BECA0u;
-        constexpr uint32_t kIconDepth = 0x00468D5Cu, kIconReady = 0x00468D58u, kIconUpload = 0x00468D60u;
-        constexpr uint32_t kNoGsPackets = 0x0046E5DBu;
-        constexpr uint32_t kDefaultDepth = 0x0011FF98u;
+        constexpr uint32_t kIcon = at(0x001280F8u);
+        constexpr uint32_t kIconFile = at(0x004AF170u);
+        constexpr uint32_t kIconSt = at(0x005BECA0u);
+        constexpr uint32_t kIconDepth = at(0x00468D5Cu), kIconReady = at(0x00468D58u), kIconUpload = at(0x00468D60u);
+        constexpr uint32_t kNoGsPackets = at(0x0046E5DBu);
+        constexpr uint32_t kDefaultDepth = at(0x0011FF98u);
 
         // 0x11AAA0 (colour, scale): a float colour's RGBAQ words, int(c.xyz * scale), int(c.w * 128), each at most 255.
         void colourWords(uint32_t colour, float scale, uint32_t out[4])
@@ -1877,7 +1877,7 @@ namespace sc3
         // label buckets, for the GS only. Dropped while the native 2D is on and the file's page is in the pack (else the
         // builders fall back to the GS, which needs them).
 
-        constexpr uint32_t kFontUpload = 0x0011FCF0u, kLabelsUpload = 0x00138860u, kIconsUpload = 0x00128080u;
+        constexpr uint32_t kFontUpload = at(0x0011FCF0u), kLabelsUpload = at(0x00138860u), kIconsUpload = at(0x00128080u);
 
         void upload(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
@@ -1900,7 +1900,7 @@ namespace sc3
         // is on and every page of the file +0x14 is in the pack with its texture; never in the first two frames the upload is
         // seen.
 
-        constexpr uint32_t kUploadItem = 0x00115600u;
+        constexpr uint32_t kUploadItem = at(0x00115600u);
 
         void uploadItem(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
@@ -1935,10 +1935,10 @@ namespace sc3
         // A packet takes 0x9C vertices and the two before them; a vertex behind w 0.08 or off the GS's range and the two
         // after it carry ADC.
 
-        constexpr uint32_t kStrips = 0x001134A0u;
-        constexpr uint32_t kStripTable = 0x00467510u, kStripInsertion = 0x00467520u;
-        constexpr uint32_t kStripInserts[] = {0x001132A8u, 0x0010D9A0u, 0x00110D78u, 0x00113250u};
-        constexpr uint32_t kStripClip = 0x00467690u, kStripColourMax = 0x00467600u, kStripDepthMin = 0x0058A560u;
+        constexpr uint32_t kStrips = at(0x001134A0u);
+        constexpr uint32_t kStripTable = at(0x00467510u), kStripInsertion = at(0x00467520u);
+        constexpr uint32_t kStripInserts[] = {at(0x001132A8u), at(0x0010D9A0u), at(0x00110D78u), at(0x00113250u)};
+        constexpr uint32_t kStripClip = at(0x00467690u), kStripColourMax = at(0x00467600u), kStripDepthMin = at(0x0058A560u);
         constexpr uint32_t kStripPacketVertices = 0x9Cu;
         constexpr uint32_t kUnknownWord = 0xFFFFFFFFu;
 
@@ -2217,7 +2217,7 @@ namespace sc3
         // the two after it carry ADC. Depth: the drawn vertices over the sum of their z / the Z scale (-(+0x28) when
         // negative), +0x2C their mean.
 
-        constexpr uint32_t kScreenStrips = 0x00114B50u;
+        constexpr uint32_t kScreenStrips = at(0x00114B50u);
 
         bool screenStripBuild(uint32_t item, Vu0 &vu, StripCall &call)
         {
@@ -2418,7 +2418,7 @@ namespace sc3
         // base +4 + t2 * 4 : t2). Recorded by where the copy goes, so a head-2 draw finds its page and CLUT without
         // reading the copy.
 
-        constexpr uint32_t kPageCopy = 0x001191D0u, kPageCopyClut = 0x00119318u, kPageCopyCbp = 0x00119248u;
+        constexpr uint32_t kPageCopy = at(0x001191D0u), kPageCopyClut = at(0x00119318u), kPageCopyCbp = at(0x00119248u);
 
         bool resolveCopy(State::PageCopy &copy, Page &out, BuilderStats &stats);
 
@@ -2595,16 +2595,16 @@ namespace sc3
         // ---- the screen-effect layer: the background behind the 3D (a sky band and a ground band split at the horizon,
         // context 1, Z written 0), built inline in the GIF list by 0x12C690 or into a slot it leaves there by 0x12C7E0.
 
-        constexpr uint32_t kEffectSlot = 0x00469210u;      // the GIF list slot 0x12C690 left for 0x12C7E0 (0: none)
-        constexpr uint32_t kEffectCamera = 0x004696C0u;    // 0x12B7D0's a1: the camera / light holder
-        constexpr uint32_t kEffectGlobals = 0x00469234u;   // pointer: +0x10 / +0x108 the TEST left after, +0x70 slot or inline
-        constexpr uint32_t kNoPacketsByte = 0x0046E5DBu;   // set: the layer builds nothing
-        constexpr uint32_t kInlineByte = 0x0046E5D1u;      // set: 0x12C690 builds inline even when +0x70 asks for a slot
-        constexpr uint32_t kXyoffsetShadow = 0x00470F80u;  // +0x28 / +0x2C: XYOFFSET_1 as the game last wrote it
-        constexpr uint32_t kFillList = 0x005BEE80u;        // 0x13CCA8's prebuilt full-screen sprites (15 quadwords)
-        constexpr uint32_t kGifListCursor = 0x005BE708u;   // 0x10DB68: list address = *(+8) + (p - *(0x70000000))
-        constexpr uint32_t kRoll = 0x00135F78u, kLight = 0x00135C68u;
-        constexpr uint32_t kEffectInline = 0x0012C690u, kEffectLayer = 0x0012C7E0u;
+        constexpr uint32_t kEffectSlot = at(0x00469210u);      // the GIF list slot 0x12C690 left for 0x12C7E0 (0: none)
+        constexpr uint32_t kEffectCamera = at(0x004696C0u);    // 0x12B7D0's a1: the camera / light holder
+        constexpr uint32_t kEffectGlobals = at(0x00469234u);   // pointer: +0x10 / +0x108 the TEST left after, +0x70 slot or inline
+        constexpr uint32_t kNoPacketsByte = at(0x0046E5DBu);   // set: the layer builds nothing
+        constexpr uint32_t kInlineByte = at(0x0046E5D1u);      // set: 0x12C690 builds inline even when +0x70 asks for a slot
+        constexpr uint32_t kXyoffsetShadow = at(0x00470F80u);  // +0x28 / +0x2C: XYOFFSET_1 as the game last wrote it
+        constexpr uint32_t kFillList = at(0x005BEE80u);        // 0x13CCA8's prebuilt full-screen sprites (15 quadwords)
+        constexpr uint32_t kGifListCursor = at(0x005BE708u);   // 0x10DB68: list address = *(+8) + (p - *(0x70000000))
+        constexpr uint32_t kRoll = at(0x00135F78u), kLight = at(0x00135C68u);
+        constexpr uint32_t kEffectInline = at(0x0012C690u), kEffectLayer = at(0x0012C7E0u);
 
         struct EffectDraw
         {
@@ -3061,9 +3061,9 @@ namespace sc3
         // strip of four vertices, PRIM 0x254) with its own head and packet (0x10FE50), at depth +0x38 / w (Z: 1 / the
         // clamped w - size z).
 
-        constexpr uint32_t kObjects = 0x00110E50u;
-        constexpr uint32_t kObjectSt = 0x00467580u; // the ST rows of a page's whole texture (0x10FE50 scales them)
-        constexpr uint32_t kObjectDepthClamp = 0x0058A530u;
+        constexpr uint32_t kObjects = at(0x00110E50u);
+        constexpr uint32_t kObjectSt = at(0x00467580u); // the ST rows of a page's whole texture (0x10FE50 scales them)
+        constexpr uint32_t kObjectDepthClamp = at(0x0058A530u);
 
         // 0x100AC0 (f12 -> *a0, *a1): its set-up in C++ and its VU0 microprogram (0x38) run as the game's vcallms runs it;
         // the quadrant picks the two lanes of vf2 it stores.
@@ -3476,10 +3476,10 @@ namespace sc3
         // over 0.08. Depth for the insertion: +0x38 over the z, or when +0x38 is not positive -(+0x38) (x 12.5 for mode 1).
         // +0x4A & 0x40 with +0x1F & 0x80 or *(*(0x469230) +0x50) (the display's aspect) picks the width correction.
 
-        constexpr uint32_t kScreenObjects = 0x001107E0u, kScreenSprites = 0x00110258u, kBillboards = 0x00112148u, kGifListAppend = 0x0010F808u;
-        constexpr uint32_t kScreenTex1 = 0x00467528u; // TEX1_2 by an entry's +0x4B (the item's +0x1D & 1)
-        constexpr uint32_t kDisplay = 0x00469230u;    // +0x50: the screen's aspect is not the game's
-        constexpr uint32_t kScreenSpriteAspect = 0x00467610u;
+        constexpr uint32_t kScreenObjects = at(0x001107E0u), kScreenSprites = at(0x00110258u), kBillboards = at(0x00112148u), kGifListAppend = at(0x0010F808u);
+        constexpr uint32_t kScreenTex1 = at(0x00467528u); // TEX1_2 by an entry's +0x4B (the item's +0x1D & 1)
+        constexpr uint32_t kDisplay = at(0x00469230u);    // +0x50: the screen's aspect is not the game's
+        constexpr uint32_t kScreenSpriteAspect = at(0x00467610u);
 
         // 0x10FD78: the colour cap, the view's +0x380 and a matrix in vf26 .. vf31, the 2D one (a3 = 1) or the 3D one (a3 = 0).
         void screenView(Vu0 &vu, uint32_t view, uint32_t slot)
@@ -3631,15 +3631,15 @@ namespace sc3
                 uint32_t first, second;
                 sinCos(rdram, ctx, runtime, vu, peekFloat(e + 0x3Cu), first, second);
                 const uint8_t flags = peek8(e + 0x4Au);
-                uint32_t vec = 0x00467620u;
+                uint32_t vec = at(0x00467620u);
                 float offset = 0.0f, scale = 1.0f;
                 if ((flags & 0x40u) != 0u && (aspect || wideFlag))
                 {
                     if (aspect && wideFlag)
-                        vec = 0x00467650u;
+                        vec = at(0x00467650u);
                     else
                     {
-                        vec = aspect ? 0x00467640u : 0x00467630u;
+                        vec = aspect ? at(0x00467640u) : at(0x00467630u);
                         if ((flags & 0x80u) != 0u)
                         {
                             scale = wordFloat(aspect ? 0x3F4DB9CCu : 0x3F9F47ADu);

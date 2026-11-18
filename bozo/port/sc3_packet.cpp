@@ -9,13 +9,13 @@ namespace sc3::packet
 {
     namespace
     {
-        constexpr uint32_t kBegin = 0x0010F4B8u;
-        constexpr uint32_t kCloseAtEnd = 0x0010DB88u;
-        constexpr uint32_t kCloseDepth = 0x0010D9A0u;
-        constexpr uint32_t kCloseFixed = 0x0010DC90u;
-        constexpr uint32_t kCloseLayerEnd = 0x0010E1F8u;
-        constexpr uint32_t kCriFromScratchpad = 0x003AE058u;
-        constexpr uint32_t kCriToScratchpad = 0x003AE130u;
+        constexpr uint32_t kBegin = at(0x0010F4B8u);
+        constexpr uint32_t kCloseAtEnd = at(0x0010DB88u);
+        constexpr uint32_t kCloseDepth = at(0x0010D9A0u);
+        constexpr uint32_t kCloseFixed = at(0x0010DC90u);
+        constexpr uint32_t kCloseLayerEnd = at(0x0010E1F8u);
+        constexpr uint32_t kCriFromScratchpad = at(0x003AE058u);
+        constexpr uint32_t kCriToScratchpad = at(0x003AE130u);
 
         constexpr uint32_t kScratchpad = 0x70000000u;
         constexpr uint32_t kWriteAt = kScratchpad + 0x00u;
@@ -27,7 +27,7 @@ namespace sc3::packet
         constexpr uint32_t kFixedSize = kScratchpad + 0x1Cu;
         constexpr uint32_t kMaxHalfSize = 0x1FC0u;
 
-        constexpr uint32_t kRenderer = 0x005BE700u;
+        constexpr uint32_t kRenderer = at(0x005BE700u);
         constexpr uint32_t kOff = kRenderer + 0x00u;
         constexpr uint32_t kChainQuadwords = kRenderer + 0x2Cu;
         constexpr uint32_t kChainAt = kRenderer + 0x30u;
@@ -35,8 +35,8 @@ namespace sc3::packet
         constexpr uint32_t kLayerBuckets = kRenderer + 0x50u;
         constexpr uint32_t kLayerLast = kRenderer + 0x64u;
 
-        constexpr uint32_t kBucketMask = 0x00467488u;
-        constexpr uint32_t kBucketMaskBase = 0x00467490u;
+        constexpr uint32_t kBucketMask = at(0x00467488u);
+        constexpr uint32_t kBucketMaskBase = at(0x00467490u);
 
         constexpr uint32_t kRefTag = 0x20000000u;
         constexpr uint32_t kOtBuckets = 0x2000u;

@@ -11,9 +11,9 @@ namespace sc3::loads
 {
     namespace
     {
-        constexpr uint32_t kFileRequest = 0x00150418u;
-        constexpr uint32_t kCdRead = 0x00424E28u;
-        constexpr uint32_t kCopy = 0x0012FE98u;
+        constexpr uint32_t kFileRequest = at(0x00150418u);
+        constexpr uint32_t kCdRead = at(0x00424E28u);
+        constexpr uint32_t kCopy = at(0x0012FE98u);
 
         void fileRequest(uint8_t *rdram, R5900Context *ctx, Runtime *runtime)
         {
@@ -27,7 +27,7 @@ namespace sc3::loads
         {
             static const bool trace = std::getenv("SC3_TRACE_CD") != nullptr;
             if (trace)
-                std::fprintf(stderr, "[sc3:cd] f%u %x %x %x\n", *reinterpret_cast<const uint32_t *>(rdram + 0x46E608u), getRegU32(ctx, 4), getRegU32(ctx, 5), getRegU32(ctx, 6));
+                std::fprintf(stderr, "[sc3:cd] f%u %x %x %x\n", *reinterpret_cast<const uint32_t *>(rdram + at(0x46E608u)), getRegU32(ctx, 4), getRegU32(ctx, 5), getRegU32(ctx, 6));
             const R5900Context arguments = *ctx;
             textures::noteReadBefore(rdram, ctx);
             meshes::noteReadBefore(rdram, ctx);

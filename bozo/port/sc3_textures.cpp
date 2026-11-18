@@ -16,12 +16,12 @@ namespace sc3::textures
 {
     namespace
     {
-        constexpr uint32_t kGifPacketClose = 0x0010F808u;
+        constexpr uint32_t kGifPacketClose = at(0x0010F808u);
         constexpr uint32_t kModelCopyMin = 0x1000u;
-        constexpr uint32_t kTextureCall = 0x00104DCCu;
-        constexpr uint32_t kAnimatedTextureCall = 0x00104E48u;
-        constexpr uint32_t kTextureCallOt = 0x00104E94u;
-        constexpr uint32_t kAnimatedTextureCallOt = 0x00104E34u;
+        constexpr uint32_t kTextureCall = at(0x00104DCCu);
+        constexpr uint32_t kAnimatedTextureCall = at(0x00104E48u);
+        constexpr uint32_t kTextureCallOt = at(0x00104E94u);
+        constexpr uint32_t kAnimatedTextureCallOt = at(0x00104E34u);
         constexpr uint32_t kSector = 2048u;
 
         struct Group

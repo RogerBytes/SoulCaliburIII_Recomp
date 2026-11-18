@@ -31,21 +31,21 @@ namespace sc3
     {
         using namespace sc3::draw;
         using namespace sc3::fp;
-        constexpr uint32_t kFrameKick = 0x0010F098u;
-        constexpr uint32_t kFileRequest = 0x00150418u;
-        constexpr uint32_t kCdRead = 0x00424E28u;
-        constexpr uint32_t kRawPart = 0x0010A178u;
-        constexpr uint32_t kRawPartTail = 0x00109990u;
-        constexpr uint32_t kChainPart = 0x0010A4E8u;
-        constexpr uint32_t kPacketFlush = 0x0010F8B8u;
-        constexpr uint32_t kRegisterPacket = 0x001276E8u;
-        constexpr uint32_t kOtInsertDepth = 0x0010D9A0u;
-        constexpr uint32_t kOtInsertFixed = 0x0010DC90u;
-        constexpr uint32_t kClipper = 0x0010B970u;
-        constexpr uint32_t kClipEmit = 0x0010B7E0u;
+        constexpr uint32_t kFrameKick = at(0x0010F098u);
+        constexpr uint32_t kFileRequest = at(0x00150418u);
+        constexpr uint32_t kCdRead = at(0x00424E28u);
+        constexpr uint32_t kRawPart = at(0x0010A178u);
+        constexpr uint32_t kRawPartTail = at(0x00109990u);
+        constexpr uint32_t kChainPart = at(0x0010A4E8u);
+        constexpr uint32_t kPacketFlush = at(0x0010F8B8u);
+        constexpr uint32_t kRegisterPacket = at(0x001276E8u);
+        constexpr uint32_t kOtInsertDepth = at(0x0010D9A0u);
+        constexpr uint32_t kOtInsertFixed = at(0x0010DC90u);
+        constexpr uint32_t kClipper = at(0x0010B970u);
+        constexpr uint32_t kClipEmit = at(0x0010B7E0u);
         constexpr uint32_t kClipVertexStride = 0x50u;
-        constexpr uint32_t kRelocate = 0x0014A7D8u;
-        constexpr uint32_t kCopy = 0x0012FE98u;
+        constexpr uint32_t kRelocate = at(0x0014A7D8u);
+        constexpr uint32_t kCopy = at(0x0012FE98u);
         constexpr uint32_t kModelCopyMin = 0x1000u;
         constexpr uint32_t kScratchpad = 0x70000000u;
         constexpr uint32_t kSector = 2048u;
@@ -1571,7 +1571,7 @@ namespace sc3
 
         float otScale()
         {
-            const uint32_t bits = peek32(0x005BE700u + 0x34u);
+            const uint32_t bits = peek32(at(0x005BE700u) + 0x34u);
             float scale;
             std::memcpy(&scale, &bits, 4);
             return scale;
