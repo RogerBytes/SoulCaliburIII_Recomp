@@ -440,6 +440,10 @@ def patches(path, ntsc_patches, ntsc_path, pal_path, reviewed, out):
         y = m.translate(x)
         if replacement >> 26 in (2, 3):
             target = m.translate((replacement & 0x3FFFFFF) << 2)
+            if target is None:
+                lines.append('# REVIEW %s: the jump target has no place' % line.strip())
+                review += 1
+                continue
             replacement = (replacement & 0xFC000000) | (target >> 2)
         found = word_at(b, y) if y is not None else None
         if found is None or code_key(found) != code_key(expected):
