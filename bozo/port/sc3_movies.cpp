@@ -100,7 +100,6 @@ namespace sc3::movies
         constexpr uint32_t kFullScreenWidth = 512u;
         constexpr uint64_t kBackdropKey = 0x5C3B4C4Bu;
         constexpr double kPictureTime = 1001.0 / 30000.0;
-        constexpr double kGameFrameTime = 1001.0 / 60000.0;
         constexpr uint32_t kSector = 2048u;
 
         struct Picture
@@ -156,9 +155,9 @@ namespace sc3::movies
             }
 
             // At the frame ends: the clock moves on, the picture of that time is the current one.
-            void update()
+            void update(double field)
             {
-                const double now = static_cast<double>(++m_ticks) * kGameFrameTime;
+                const double now = m_clock += field;
                 std::unique_lock<std::mutex> lock(m_mutex);
                 if (!m_active)
                     return;
@@ -478,7 +477,8 @@ namespace sc3::movies
             std::thread m_thread;
             std::mutex m_mutex;
             std::condition_variable m_wake;
-            uint64_t m_base = 0, m_size = 0, m_position = 0, m_decoded = 0, m_ticks = 0, m_backdropVersion = 0;
+            uint64_t m_base = 0, m_size = 0, m_position = 0, m_decoded = 0, m_backdropVersion = 0;
+            double m_clock = 0.0;
             double m_now = 0.0;
             std::deque<Picture> m_frames;
             std::deque<int16_t> m_audio;
@@ -489,7 +489,8 @@ namespace sc3::movies
         };
 
         std::map<uint32_t, std::shared_ptr<SfdPlayer>> g_players;
-        uint64_t g_audioTicks = 0, g_audioPushed = 0;
+        uint64_t g_audioPushed = 0;
+        double g_audioClock = 0.0;
 
         std::shared_ptr<SfdPlayer> find(uint32_t handle)
         {
@@ -499,10 +500,9 @@ namespace sc3::movies
 
         // What the soundtracks owe the stream by the clock, plus a lead that outlasts a slow frame on the host's clock and the
         // mixer's block in a deterministic run. Silence is not pushed: the stream adds nothing when it has none.
-        void pushAudio(PS2Runtime *runtime, bool realTime)
+        void pushAudio(PS2Runtime *runtime, bool realTime, double field)
         {
-            ++g_audioTicks;
-            const double now = static_cast<double>(g_audioTicks) * kGameFrameTime;
+            const double now = g_audioClock += field;
             const uint64_t target = static_cast<uint64_t>(now * kRate) + (realTime ? kRate / 5u : kRate / 60u);
             if (target <= g_audioPushed)
                 return;
@@ -686,14 +686,16 @@ namespace sc3::movies
 #ifdef SC3_HAVE_FFMPEG
         if (g_players.empty())
         {
-            g_audioTicks = g_audioPushed = 0;
+            g_audioPushed = 0;
+            g_audioClock = 0.0;
             return;
         }
         g_runtime = runtime;
         const bool realTime = bozo::port::host(runtime).realTime();
+        const double field = clock::fieldSeconds(runtime);
         for (const auto &entry : g_players)
-            entry.second->update();
-        pushAudio(runtime, realTime);
+            entry.second->update(field);
+        pushAudio(runtime, realTime, field);
 #else
         (void)runtime;
 #endif

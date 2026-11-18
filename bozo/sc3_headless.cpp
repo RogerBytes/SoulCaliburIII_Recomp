@@ -23,7 +23,6 @@ int main(int argc, char **argv)
 {
     bozo::host::FreeOptions opt;
     opt.profileIo = true;
-    opt.framePeriodCycles = sc3::kFramePeriodCycles;
     bool printSites = false;
     opt.elf = BOZO_RUN_DEFAULT_ELF;
     sc3::useSymbolMap(opt, argv[0]);

@@ -47,6 +47,10 @@ namespace sc3
         // The horizontal blanks so far, 16 bits; reading the same count again charges a line (a poll takes time).
         uint32_t lines(PS2Runtime *runtime, R5900Context *ctx);
         uint32_t linesSinceVblank(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
+        // A field in EE cycles and in seconds, at the rate the game set the display to (PAL 50 Hz, NTSC and PAL60
+        // 59.94 Hz).
+        uint64_t fieldCycles(PS2Runtime *runtime);
+        double fieldSeconds(PS2Runtime *runtime);
     }
     namespace packet
     {

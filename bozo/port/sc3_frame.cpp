@@ -5,6 +5,7 @@
 
 #include "bozo/app/frame_pacer.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -58,6 +59,7 @@ namespace sc3::frame
 
         bool g_frameOpen = false;
         bozo::app::FramePacer g_pacer;
+        uint64_t g_lastFrameEnd = 0;
 
         template <typename T>
         T get(const uint8_t *rdram, uint32_t address)
@@ -98,10 +100,17 @@ namespace sc3::frame
         void endOfFrame(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
             movies::tick(runtime);
-            g_pacer.setCap(60u);
+            const double field = clock::fieldSeconds(runtime);
+            g_pacer.setCap(static_cast<uint32_t>(std::lround(1.0 / field)));
             g_pacer.setPaced(bozo::port::realTime(runtime));
             g_pacer.frameEnd();
             ot::holdStill();
+            // A frame that ends with no wait of its own (a movie's, in ADXM's sleep) still takes a field of EE time: what the
+            // game's threads, the mixer and a deterministic movie clock run on.
+            const uint64_t fieldCycles = clock::fieldCycles(runtime), elapsed = bozo::port::now(runtime) - g_lastFrameEnd;
+            if (elapsed < fieldCycles)
+                bozo::port::accountCycles(runtime, ctx, fieldCycles - elapsed);
+            g_lastFrameEnd = bozo::port::now(runtime);
             bozo::port::frameEnd(runtime, ctx);
             noteField(rdram, runtime);
         }

@@ -95,6 +95,16 @@ namespace sc3::clock
         return count;
     }
 
+    uint64_t fieldCycles(PS2Runtime *runtime)
+    {
+        return bozo::port::kernel(runtime).field();
+    }
+
+    double fieldSeconds(PS2Runtime *runtime)
+    {
+        return static_cast<double>(fieldCycles(runtime)) / static_cast<double>(bozo::port::kEeClockHz);
+    }
+
     uint32_t linesSinceVblank(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         return since(rdram, ctx, runtime, 0x100u);
