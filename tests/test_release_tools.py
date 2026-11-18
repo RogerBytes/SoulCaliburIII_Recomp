@@ -68,9 +68,11 @@ class BuildTests(unittest.TestCase):
             self.assertIn('-DBOZO_FFMPEG_ROOT=' + folder.replace('\\', '/'), commands[0])
 
     def test_extract_takes_only_what_the_build_reads(self):
-        wanted = [n for n in ('SLUS_212.16', 'ROOT.OLK', 'IRX/CRI_ADXI.IRX', 'IRX/NUSOUND.IRX', 'IRX/SDRDRV.IRX',
-                              'IRX\\SDRDRV.IRX', 'MOVIE.AFS', 'BGM.AFS', 'IRX/LIBSD.IRX', 'SYSTEM.CNF')
-                  if sc3_build.Build.wanted(n)]
+        build = sc3_build.Build.__new__(sc3_build.Build)
+        build.state, build.disc_dir = {'boot': 'SLUS_212.16'}, ''
+        wanted = [n for n in ('SLUS_212.16', 'SCES_533.12', 'ROOT.OLK', 'IRX/CRI_ADXI.IRX', 'IRX/NUSOUND.IRX',
+                              'IRX/SDRDRV.IRX', 'IRX\\SDRDRV.IRX', 'MOVIE.AFS', 'BGM.AFS', 'IRX/LIBSD.IRX', 'SYSTEM.CNF')
+                  if build.wanted(n)]
         self.assertEqual(wanted, ['SLUS_212.16', 'ROOT.OLK', 'IRX/CRI_ADXI.IRX', 'IRX/NUSOUND.IRX', 'IRX/SDRDRV.IRX',
                                   'IRX\\SDRDRV.IRX'])
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""sc3_build: from the player's own Soulcalibur III disc (USA, SLUS-21216) to a game folder that runs, in one
-command. Nothing derived from the game is distributed: the disc's files, the generated code, the packs and the
+"""sc3_build: from the player's own Soulcalibur III disc (USA, SLUS-21216, or Europe, SCES-53312) to a game folder that
+runs, in one command. Nothing derived from the game is distributed: the disc's files, the generated code, the packs and the
 executable are all made here, on the player's PC. The game is built on BozoEngine (the BozoEngine submodule, at the
 commit this code pins; --engine <dir> for another tree).
 
@@ -9,20 +9,20 @@ commit this code pins; --engine <dir> for another tree).
 
 Steps (each skipped when an earlier run finished it with the same inputs; --redo <step> runs it and the ones after
 again; within a step CMake and Ninja rebuild only what changed):
-  verify     the disc image or folder: ISO9660 (.iso, .bin/.cue), SYSTEM.CNF's boot file, SLUS_212.16's SHA-1
-  extract    the files the build reads into <out>/disc: SLUS_212.16, ROOT.OLK (the packs' input) and the three sound
+  verify     the disc image or folder: ISO9660 (.iso, .bin/.cue), SYSTEM.CNF's boot file (SLUS_212.16 or SCES_533.12), its SHA-1
+  extract    the files the build reads into <out>/disc: the boot ELF, ROOT.OLK (the packs' input) and the three sound
              modules IRX/CRI_ADXI.IRX, NUSOUND.IRX, SDRDRV.IRX (translated at build time), no outside tool (BozoEngine's tools/native_pack/ps2_disc.py); and the image itself as <game>/disc.iso (the
              game reads the disc from it): a hard link to the .iso on the same drive, else a copy (a .bin / .cue
              converted)
   configure  cmake (Ninja) of SC3 on BozoEngine (cmake/bozo.cmake): SDL3 and Dear ImGui from the kit's
              deps/, FFmpeg (the movies) from the kit's ffmpeg/
   tools      BozoEngine's recompiler and externals writer (bozo-recomp, bozo-externals), built from its sources
-  recompile  the externals list (the ELF's library symbols named by recomp/sc3_symbols.txt, SC3's overrides,
+  recompile  the externals list (the ELF's library symbols named by recomp/sc3_symbols.txt or recomp/pal/'s, SC3's overrides,
              recomp/sc3_stubs.txt) and bozo-recomp -> <out>/build/sc3_gen
   packs      the texture, mesh and 2D packs (scripts/sc3_texture_pack.py, sc3_mesh_pack.py, sc3_2d_pack.py on
              BozoEngine's tools/native_pack) -> <out>/build/packs
   compile    the game (sc3: SDL3, OpenGL 3.3) with its sound modules
-  stage      <game>: sc3.exe, SLUS_212.16, sc3_symbols.txt, packs/, disc.iso, "Play SC3.cmd"
+  stage      <game>: sc3.exe, the boot ELF, sc3_symbols.txt, packs/, disc.iso, "Play SC3.cmd"
 
 The build kit (scripts/make_build_kit.py): a folder with kit_manifest.json, the compiler (ucrt64/), a minimal static
 FFmpeg (ffmpeg/), the libraries' sources (deps/: SDL3, Dear ImGui) and an embeddable Python. Used when it sits in
@@ -83,11 +83,13 @@ def configure_gcc_paths(env, compiler_bin):
 ENGINE = os.path.join(ROOT, 'BozoEngine')  # --engine replaces it
 ps2_disc = None  # BozoEngine's tools/native_pack/ps2_disc.py, imported by load_engine()
 
-ELF_NAME = 'SLUS_212.16'
-ELF_SHA1 = '9bbb67a70137052931bc245855eedeee6bbe5b49'
-OTHER_RELEASES = {
-    'SLUS_212.16': 'the USA release',
+# The discs SoulCaliburIII_Recomp supports, by boot ELF: its SHA-1, what to call it, the folder of its recomp inputs.
+RELEASES = {
+    'SLUS_212.16': ('9bbb67a70137052931bc245855eedeee6bbe5b49', 'USA disc (SLUS-21216)', 'recomp'),
+    'SCES_533.12': ('8c79c1db3395e72ada118860433de6638ccf9401', 'European disc (SCES-53312)', os.path.join('recomp', 'pal')),
 }
+SUPPORTED = 'the USA disc (SLUS-21216) or the European disc (SCES-53312)'
+RELEASE_INPUTS = ('address_map.txt', 'address_reviewed.txt')
 # The disc's files the build reads besides the ELF: the packs' input and the sound modules (cmake/sc3_audio.cmake).
 DISC_FILES = ('ROOT.OLK', 'IRX/CRI_ADXI.IRX', 'IRX/NUSOUND.IRX', 'IRX/SDRDRV.IRX')
 STEPS = ['verify', 'extract', 'configure', 'tools', 'recompile', 'packs', 'compile', 'stage']
@@ -357,8 +359,21 @@ class Build:
             raise BuildError('%s does not exist' % src)
         return src
 
+    def boot(self):
+        """The boot ELF of the disc this work folder builds: the one verify found, else the extracted one."""
+        boot = self.state.get('boot') if hasattr(self, 'state') else None
+        if boot in RELEASES:
+            return boot
+        for name in RELEASES:
+            if os.path.isfile(os.path.join(self.disc_dir, name)):
+                return name
+        return 'SLUS_212.16'
+
     def elf(self):
-        return os.path.join(self.disc_dir, ELF_NAME)
+        return os.path.join(self.disc_dir, self.boot())
+
+    def recomp_dir(self):
+        return os.path.join(ROOT, RELEASES[self.boot()][2])
 
     # -- steps
 
@@ -367,7 +382,7 @@ class Build:
         a = self.args
         prev = lambda s: self.state.get(s, {}).get('key')  # noqa: E731
         if step == 'verify':
-            return fingerprint(file_stamp(self.disc_input()))
+            return fingerprint(file_stamp(self.disc_input()), self.state.get('boot'))
         if step == 'extract':
             return fingerprint(prev('verify'), DISC_FILES, self.game)
         if step == 'configure':
@@ -380,6 +395,7 @@ class Build:
         if step == 'recompile':
             return fingerprint(prev('tools'), tree_stamp(os.path.join(ROOT, 'bozo', 'port'), ('.cpp',)),
                                [file_stamp(os.path.join(ROOT, 'recomp', n)) for n in RECOMP_INPUTS],
+                               [file_stamp(os.path.join(self.recomp_dir(), n)) for n in RECOMP_INPUTS + RELEASE_INPUTS],
                                [file_stamp(os.path.join(ROOT, 'scripts', n)) for n in
                                 ('sc3_overrides_list.py', 'sc3_externals_all_transfers.py')])
         if step == 'packs':
@@ -396,43 +412,46 @@ class Build:
         raise AssertionError(step)
 
     def step_verify(self):
+        boot = self.disc_boot()
+        if hasattr(self, 'state'):
+            self.state['boot'] = boot
+        return boot
+
+    def disc_boot(self):
+        """The supported boot ELF of the disc the player gave, its SHA-1 checked."""
         src = self.disc_input()
         if os.path.isdir(src):
-            elf = os.path.join(src, ELF_NAME)
-            if not os.path.isfile(elf):
+            boot = next((n for n in RELEASES if os.path.isfile(os.path.join(src, n))), None)
+            if not boot:
                 others = [n for n in os.listdir(src) if re.match(r'S[CL][A-Z]S_\d{3}\.\d{2}$', n, re.I)]
                 raise BuildError(self.wrong_disc(others[0] if others else None, src))
-            digest = sha1_file(elf)
+            digest = sha1_file(os.path.join(src, boot))
         else:
             try:
                 disc = ps2_disc.Disc(src)
             except ps2_disc.DiscError as e:
                 raise BuildError('%s: %s' % (os.path.basename(src), e))
             try:
-                boot = disc.boot_elf()
-                if not boot or boot.upper() != ELF_NAME:
+                boot = (disc.boot_elf() or '').upper()
+                if boot not in RELEASES:
                     raise BuildError(self.wrong_disc(boot, src))
-                digest = hashlib.sha1(disc.read(ELF_NAME)).hexdigest()
+                digest = hashlib.sha1(disc.read(boot)).hexdigest()
             finally:
                 disc.close()
-        if digest != ELF_SHA1:
+        sha1, what, _ = RELEASES[boot]
+        if digest != sha1:
             raise BuildError('%s on this disc is not the one SoulCaliburIII_Recomp supports (SHA-1 %s, expected %s): a '
-                             'different printing or a modified or damaged image. Make a fresh 1:1 copy of the USA disc '
-                             '(SLUS-21216).'
-                             % (ELF_NAME, digest, ELF_SHA1))
-        emit('INFO', 'verify', 'USA disc (SLUS-21216), %s SHA-1 ok' % ELF_NAME)
+                             'different printing or a modified or damaged image. Make a fresh 1:1 copy of your disc '
+                             '(%s).' % (boot, digest, sha1, what))
+        emit('INFO', 'verify', '%s, %s SHA-1 ok' % (what, boot))
+        return boot
 
     @staticmethod
     def wrong_disc(boot, src):
-        if boot and boot.upper() in OTHER_RELEASES and boot.upper() != ELF_NAME:
-            what = OTHER_RELEASES[boot.upper()]
-            return ('%s is %s of Soulcalibur III; SoulCaliburIII_Recomp only supports the USA disc '
-                    '(SLUS-21216).' % (os.path.basename(src), what))
         if boot:
-            return ('%s boots %s: not Soulcalibur III (USA, SLUS-21216), the only disc SoulCaliburIII_Recomp supports.'
-                    % (os.path.basename(src), boot))
-        return ('%s: no %s found: not the Soulcalibur III USA disc (SLUS-21216), or not a PS2 disc image.'
-                % (os.path.basename(src), ELF_NAME))
+            return ('%s boots %s: not a Soulcalibur III disc SoulCaliburIII_Recomp supports, %s.'
+                    % (os.path.basename(src), boot, SUPPORTED))
+        return ('%s: no boot file found: not %s, or not a PS2 disc image.' % (os.path.basename(src), SUPPORTED))
 
     def step_extract(self):
         src = self.disc_input()
@@ -440,15 +459,18 @@ class Build:
         if os.path.isdir(src):
             image = self.find_folder_image(src)
             if not image:
-                raise BuildError('the game reads the disc image itself: no .iso of the USA disc in %s or the folders '
+                raise BuildError('the game reads the disc image itself: no .iso of this disc in %s or the folders '
                                  'above it. Pass the .iso (--disc <image>) instead.' % src)
         os.makedirs(self.game, exist_ok=True)
         marker = os.path.join(self.disc_dir, '.extracted')
         if os.path.exists(marker):
             os.remove(marker)
         self.extract_files(src)
-        if sha1_file(self.elf()) != ELF_SHA1:
-            raise BuildError("the extracted %s differs from the disc's (disk error?)" % ELF_NAME)
+        for other in RELEASES:
+            if other != self.boot() and os.path.exists(os.path.join(self.disc_dir, other)):
+                os.remove(os.path.join(self.disc_dir, other))
+        if sha1_file(self.elf()) != RELEASES[self.boot()][0]:
+            raise BuildError("the extracted %s differs from the disc's (disk error?)" % self.boot())
         # The packs' inputs are ready (cmake/bozo.cmake's SC3_DISC_DIR).
         with open(marker, 'w') as f:
             f.write('extracted by scripts/sc3_build.py\n')
@@ -466,8 +488,9 @@ class Build:
                 except ps2_disc.DiscError:
                     continue
                 try:
-                    if (disc.boot_elf() or '').upper() == ELF_NAME and \
-                            hashlib.sha1(disc.read(ELF_NAME)).hexdigest() == ELF_SHA1:
+                    boot = self.boot()
+                    if (disc.boot_elf() or '').upper() == boot and \
+                            hashlib.sha1(disc.read(boot)).hexdigest() == RELEASES[boot][0]:
                         return os.path.join(d, name)
                 finally:
                     disc.close()
@@ -512,10 +535,9 @@ class Build:
         finally:
             disc.close()
 
-    @staticmethod
-    def wanted(rel):
+    def wanted(self, rel):
         rel = rel.replace('\\', '/')
-        return rel.upper() == ELF_NAME or rel.upper() in DISC_FILES
+        return rel.upper() == self.boot() or rel.upper() in DISC_FILES
 
     def extract_files(self, src):
         """Only what the build reads: the ELF, ROOT.OLK and the sound modules (resumable: finished files stay)."""
@@ -668,7 +690,11 @@ class Build:
             for dll in runtime_dlls(exe, [os.path.dirname(exe), self.find_toolchain()]):
                 shutil.copy2(dll, os.path.join(self.game, os.path.basename(dll)))
                 staged.append(dll)
-        shutil.copy2(self.elf(), os.path.join(self.game, ELF_NAME))
+        for other in RELEASES:
+            if os.path.exists(os.path.join(self.game, other)):
+                os.remove(os.path.join(self.game, other))
+        boot = self.boot()
+        shutil.copy2(self.elf(), os.path.join(self.game, boot))
         shutil.copy2(self.symbol_map(), os.path.join(self.game, 'sc3_symbols.txt'))
         packs = os.path.join(self.game, 'packs')
         os.makedirs(packs, exist_ok=True)
@@ -684,24 +710,24 @@ class Build:
         if os.name == 'nt':
             lines = ['@echo off', 'rem Made by scripts/sc3_build.py: Soulcalibur III, native PC port (BozoEngine).',
                      'cd /d "%~dp0"',
-                     'start "" "%%~dp0%s" --elf "%%~dp0%s" --iso "%%~dp0disc.iso" %%*' % (name, ELF_NAME), '']
+                     'start "" "%%~dp0%s" --elf "%%~dp0%s" --iso "%%~dp0disc.iso" %%*' % (name, boot), '']
             with open(os.path.join(self.game, PLAY_CMD), 'w', newline='\r\n') as f:
                 f.write('\n'.join(lines))
         else:
             sh = os.path.join(self.game, PLAY_SH)
             with open(sh, 'w', newline='\n') as f:
                 f.write('#!/bin/sh\ncd "$(dirname "$0")"\nexec ./%s --elf "$PWD/%s" --iso "$PWD/disc.iso" "$@"\n'
-                        % (name, ELF_NAME))
+                        % (name, boot))
             os.chmod(sh, 0o755)
         with open(os.path.join(self.game, 'sc3_build.json'), 'w') as f:
-            json.dump({'built': time.strftime('%Y-%m-%d %H:%M:%S'), 'engine': 'BozoEngine', 'elf_sha1': ELF_SHA1,
+            json.dump({'built': time.strftime('%Y-%m-%d %H:%M:%S'), 'engine': 'BozoEngine', 'elf': boot, 'elf_sha1': RELEASES[boot][0],
                        'build_type': self.args.build_type, 'debug_info': self.args.debug_info,
                        'toolchain': self.find_toolchain(), 'kit': self.kit, 'exe': name,
                        'files': [os.path.basename(p) for p in staged]}, f, indent=1)
         emit('INFO', 'stage', '%s, %.1f MB, %d DLLs staged' % (name, os.path.getsize(dest) / 1e6, len(staged) - 1))
 
     def symbol_map(self):
-        return os.path.join(ROOT, 'recomp', 'sc3_symbols.txt')
+        return os.path.join(self.recomp_dir(), 'sc3_symbols.txt')
 
     def write_built_from(self):
         """<game>/built_from.ini: the release stamp (<SoulCaliburIII_Recomp>/release.ini, written by scripts/make_release.py) of the
@@ -815,19 +841,19 @@ def check_disc(path):
     b = Build.__new__(Build)
     b.args = argparse.Namespace(disc=path)
     try:
-        b.step_verify()
+        boot = b.disc_boot()
     except BuildError as e:
         emit('ERROR', 'verify', e)
         return 1
     except Exception as e:  # noqa: BLE001 (an unreadable file: still one line)
         emit('ERROR', 'verify', '%s: %s' % (os.path.basename(path), e))
         return 1
-    emit('OK', 'USA disc (SLUS-21216)')
+    emit('OK', RELEASES[boot][1])
     return 0
 
 
 def main():
-    ap = argparse.ArgumentParser(description='Builds Soulcalibur III (USA) as a native PC game from your own disc.')
+    ap = argparse.ArgumentParser(description='Builds Soulcalibur III (USA or Europe) as a native PC game from your own disc.')
     ap.add_argument('--disc', required=True, help='the disc image (.iso, .bin, .cue) or an extracted disc folder')
     ap.add_argument('--out', default='sc3_build', help='the work folder; the game ends up in <out>/SC3')
     ap.add_argument('--game', help='the game folder to stage (default: <out>/SC3)')
