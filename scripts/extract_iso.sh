@@ -5,6 +5,7 @@ source "$(dirname "$0")/common.sh"
 [ $# -eq 1 ] && [ -f "$1" ] || { echo "usage: $0 <image.iso>"; exit 1; }
 command -v bsdtar >/dev/null || { echo "bsdtar not found (libarchive)"; exit 1; }
 mkdir -p "$GAME_DIR"
+rm -f "$GAME_DIR/SLUS_212.16" "$GAME_DIR/SCES_533.12"
 bsdtar -xf "$1" -C "$GAME_DIR" --exclude PAD_0.DAT
 chmod -R u+w "$GAME_DIR"
 if [ -f "$GAME_DIR/SLUS_212.16" ]; then
