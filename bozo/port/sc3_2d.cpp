@@ -4145,6 +4145,7 @@ namespace sc3
         // The texture files inside the ELF are bound as the ELF has them, before the game relocates their pointers.
         void gameStart(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
+            applyLanguage(runtime);
             prepare(rdram, runtime);
             recompiled<0x100008u>(rdram, ctx, runtime);
         }

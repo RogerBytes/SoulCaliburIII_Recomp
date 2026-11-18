@@ -1,9 +1,12 @@
 #include "sc3_draw.h"
 #include "sc3_port.h"
 
+#include "bozo/ee/dispatcher.h"
+
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 namespace
 {
@@ -20,6 +23,26 @@ namespace
         sc3::movies::install(runtime);
         sc3::audio::install(runtime);
     }
+}
+
+void sc3::applyLanguage(PS2Runtime *runtime)
+{
+    static const struct
+    {
+        const char *code;
+        uint32_t osd;
+    } kLanguages[] = {{"en", 1u}, {"fr", 2u}, {"es", 3u}, {"de", 4u}, {"it", 5u}};
+    const char *wanted = std::getenv("SC3_LANGUAGE");
+    if (wanted == nullptr || *wanted == '\0')
+        return;
+    for (const auto &language : kLanguages)
+        if (std::strcmp(wanted, language.code) == 0)
+        {
+            uint32_t &osd = bozo::port::dispatcher(runtime).osdConfig;
+            osd = (osd & ~(0x1Fu << 16)) | (language.osd << 16);
+            return;
+        }
+    std::fprintf(stderr, "[sc3] SC3_LANGUAGE=%s: not en, fr, de, es or it; the console's language stays\n", wanted);
 }
 
 void sc3::statsLine(const char *format, ...)
