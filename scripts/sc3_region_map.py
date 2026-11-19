@@ -1,0 +1,484 @@
+"""sc3_region_map: where an address of the NTSC executable (SLUS_212.16) lives in another release's (SCES_533.12).
+
+    python scripts/sc3_region_map.py build <SLUS_212.16> <SCES_533.12> <out.map>
+    python scripts/sc3_region_map.py translate <map> <address>...
+    python scripts/sc3_region_map.py symbols <map> <ntsc "name 0xADDR" list> <out>
+    python scripts/sc3_region_map.py patches <map> <ntsc patches> <SLUS_212.16> <SCES_533.12> <reviewed> <out>
+
+build lines the two executables up and writes the ranges that moved as a block:
+  code     function by function (a jal target to the next): bodies equal once every relocated field is masked (jump
+           targets, the immediates of lui, addiu, ori, the loads and the stores) and unique on both sides match first,
+           then the callees the matched functions name, then the functions left between two matched neighbours, in order.
+           A function whose body differs is aligned inside by a diff of the two.
+  data     the initialised sections, word by word, a diff with every word that points into the image masked
+  bss      .sbss and .bss have no bytes to line up: their ranges come from the addresses the matched code and data name
+           (lui pairs, $gp offsets, pointers), grouped while the offset stays the same
+  changed  the functions whose code differs, and the data words that point elsewhere: an address the port names there has
+           to be read again for that release, its place in the map is the diff's guess
+
+A map line is `<kind> <ntsc begin> <ntsc end> <offset>`, the end excluded. An address in no range has no translation.
+symbols and patches carry SC3's recomp inputs over with the map; patches takes the reviewed lines (`<ntsc address>
+<address> <expected> <replacement>`) in place of what it cannot carry itself.
+"""
+import bisect
+import difflib
+import struct
+import subprocess
+import sys
+import tempfile
+from collections import defaultdict
+from pathlib import Path
+
+IMAGE_LOW, IMAGE_HIGH = 0x00100000, 0x02000000
+MASK_IMMEDIATE = {0x09, 0x0D, 0x0F, 0x1E, 0x1F} | set(range(0x20, 0x40))
+STORES = {0x1F, 0x39, 0x3D, 0x3F} | set(range(0x28, 0x30))
+
+
+class Elf:
+    def __init__(self, path):
+        self.data = Path(path).read_bytes()
+        d = self.data
+        shoff, = struct.unpack_from('<I', d, 0x20)
+        shentsize, shnum, shstrndx = struct.unpack_from('<HHH', d, 0x2E)
+        raw = [struct.unpack_from('<IIIIIIIIII', d, shoff + i * shentsize) for i in range(shnum)]
+        strtab = raw[shstrndx][4]
+        self.sections = {}
+        for s in raw:
+            name = d[strtab + s[0]:d.index(b'\0', strtab + s[0])].decode()
+            self.sections[name] = (s[1], s[3], s[4], s[5])
+        self.gp, = struct.unpack_from('<I', d, self.sections['.reginfo'][2] + 20)
+        _, addr, off, size = self.sections['.text']
+        self.text = (addr, list(struct.unpack_from('<%dI' % (size // 4), d, off)))
+        loaded = sorted((a, o, z) for t, a, o, z in self.sections.values() if t == 1 and a and a != self.text[0])
+        self.initialised = [(a, list(struct.unpack_from('<%dI' % (z // 4), d, o))) for a, o, z in loaded]
+        self.zeroed = sorted((a, a + z) for t, a, o, z in self.sections.values() if t == 8 and z)
+
+    def bss(self, address):
+        return any(lo <= address < hi for lo, hi in self.zeroed)
+
+
+def code_key(w):
+    op = w >> 26
+    if op in (2, 3):
+        return w & 0xFC000000
+    if op in MASK_IMMEDIATE:
+        return w & 0xFFFF0000
+    return w
+
+
+def data_key(w):
+    return 'p' if IMAGE_LOW <= w < IMAGE_HIGH else '%08x' % w
+
+
+def aligned_runs(a, b):
+    """What a diff of the two key lists keeps in place: (index in a, index in b, length, same), where same is False for
+    a hunk that replaces words with as many others (the layout holds, the content differs)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        fa, fb = Path(tmp, 'a'), Path(tmp, 'b')
+        fa.write_text(''.join('%s\n' % k for k in a))
+        fb.write_text(''.join('%s\n' % k for k in b))
+        done = subprocess.run(['diff', '--minimal', str(fa), str(fb)], capture_output=True, text=True)
+        if done.returncode not in (0, 1):
+            raise SystemExit('diff failed: %s' % done.stderr.strip())
+        out = done.stdout
+    runs, ia, ib = [], 0, 0
+    for line in out.splitlines():
+        if not line or not line[0].isdigit():
+            continue
+        (a1, a2), kind, (b1, b2) = _hunk(line)
+        if kind == 'a':
+            a1, a2 = a1 + 1, a1
+        if kind == 'd':
+            b1, b2 = b1 + 1, b1
+        if a1 - 1 > ia:
+            runs.append((ia, ib, a1 - 1 - ia, True))
+        if kind == 'c' and a2 - a1 == b2 - b1:
+            runs.append((a1 - 1, b1 - 1, a2 - a1 + 1, False))
+        ia, ib = a2, b2
+    if ia < len(a):
+        runs.append((ia, ib, len(a) - ia, True))
+    return runs
+
+
+def _hunk(line):
+    for kind in 'acd':
+        if kind in line:
+            left, right = line.split(kind)
+            return _span(left), kind, _span(right)
+    raise ValueError(line)
+
+
+def _span(text):
+    first, _, last = text.partition(',')
+    return int(first), int(last or first)
+
+
+def addresses_named(start, words_a, words_b, gp_a, gp_b):
+    """The addresses two aligned instruction runs compute, lui with its low half and $gp offsets: (a, b, where)."""
+    high_a, high_b, pairs = {}, {}, []
+    for i, (wa, wb) in enumerate(zip(words_a, words_b)):
+        op, rs, rt = wa >> 26, (wa >> 21) & 31, (wa >> 16) & 31
+        if op == 0x0F:
+            high_a[rt], high_b[rt] = (wa & 0xFFFF) << 16, (wb & 0xFFFF) << 16
+            continue
+        if op in MASK_IMMEDIATE:
+            sa, sb = _signed(wa & 0xFFFF), _signed(wb & 0xFFFF)
+            if rs == 28:
+                pairs.append(((gp_a + sa) & 0xFFFFFFFF, (gp_b + sb) & 0xFFFFFFFF, start + 4 * i))
+            elif rs in high_a and op != 0x0D:
+                pairs.append(((high_a[rs] + sa) & 0xFFFFFFFF, (high_b[rs] + sb) & 0xFFFFFFFF, start + 4 * i))
+            elif rs in high_a:
+                pairs.append((high_a[rs] | (wa & 0xFFFF), high_b[rs] | (wb & 0xFFFF), start + 4 * i))
+            if op not in STORES:
+                high_a.pop(rt, None)
+                high_b.pop(rt, None)
+        elif op == 0:
+            high_a.pop((wa >> 11) & 31, None)
+            high_b.pop((wa >> 11) & 31, None)
+        if op in (2, 3) or (op == 0 and (wa & 0x3F) in (8, 9)):
+            high_a.clear()
+            high_b.clear()
+    return pairs
+
+
+def _signed(v):
+    return v - 0x10000 if v & 0x8000 else v
+
+
+def vote(pairs, kind, shift):
+    """Address pairs with no range yet: each address takes the offset most of its pairs give, and a run of addresses
+    with the same offset is a range, from the first to the word past the last. An offset that strays from the section's
+    own shift by 32 KiB or more, or a lone address whose offset no neighbour shares, is left out (a lui that pairs with
+    another low half than it seems to)."""
+    votes = defaultdict(lambda: defaultdict(int))
+    for x, y in pairs:
+        if abs(y - x - shift) < 0x8000:
+            votes[x][y - x] += 1
+    best = sorted((x, max(c, key=c.get)) for x, c in votes.items())
+    runs = []
+    for x, offset in best:
+        if runs and runs[-1][3] == offset:
+            runs[-1][1] = x
+            runs[-1][2] += 1
+        else:
+            runs.append([x, x, 1, offset])
+    kept = [r for i, r in enumerate(runs)
+            if r[2] > 1 or (i and runs[i - 1][3] == r[3]) or (i + 1 < len(runs) and runs[i + 1][3] == r[3])]
+    return [(kind, lo, (hi & ~3) + 4, offset) for lo, hi, _, offset in kept]
+
+
+def functions(elf):
+    """The functions of .text as (start, end): from a jal target to the next."""
+    base, words = elf.text
+    end = base + 4 * len(words)
+    starts = sorted({(w & 0x3FFFFFF) << 2 for w in words if w >> 26 == 3} | {base})
+    starts = [x for x in starts if base <= x < end] + [end]
+    return list(zip(starts, starts[1:]))
+
+
+def match_code(a, b):
+    """Every NTSC function's place in the other release: (start, end, its start there, aligned runs inside it) and the
+    functions whose code differs. Identical bodies (relocations masked) that are unique on both sides match first, then
+    the calls the matched functions make name their callees, then a function between two matched neighbours takes the
+    places they leave, in order, when as many functions sit between them on both sides."""
+    base_a, words_a = a.text
+    base_b, words_b = b.text
+    fa, fb = functions(a), functions(b)
+    end_a = dict(fa)
+    ka = {lo: tuple(code_key(w) for w in words_a[(lo - base_a) // 4:(hi - base_a) // 4]) for lo, hi in fa}
+    kb = {lo: tuple(code_key(w) for w in words_b[(lo - base_b) // 4:(hi - base_b) // 4]) for lo, hi in fb}
+    by_a, by_b = defaultdict(list), defaultdict(list)
+    for lo, k in ka.items():
+        by_a[k].append(lo)
+    for lo, k in kb.items():
+        by_b[k].append(lo)
+    match = {los[0]: by_b[k][0] for k, los in by_a.items() if len(los) == 1 and len(by_b.get(k, ())) == 1}
+    order_b = [lo for lo, _ in fb]
+    index_b = {lo: i for i, lo in enumerate(order_b)}
+
+    def take(x, y):
+        if x not in match and y in kb and y not in used:
+            match[x] = y
+            used.add(y)
+            return 1
+        return 0
+
+    used = set(match.values())
+    while True:
+        votes = defaultdict(lambda: defaultdict(int))
+        for x, y in match.items():
+            if ka[x] != kb[y]:
+                continue
+            for wa, wb in zip(words_a[(x - base_a) // 4:(end_a[x] - base_a) // 4], words_b[(y - base_b) // 4:]):
+                if wa >> 26 == 3:
+                    votes[(wa & 0x3FFFFFF) << 2][(wb & 0x3FFFFFF) << 2] += 1
+        new = 0
+        for t, c in votes.items():
+            best = max(c, key=c.get)
+            if t in ka and ka[t] == kb.get(best):
+                new += take(t, best)
+        for i, (lo, _) in enumerate(fa):
+            if lo in match:
+                continue
+            prev, nxt = fa[i - 1][0] if i else None, fa[i + 1][0] if i + 1 < len(fa) else None
+            for y in (index_b.get(match.get(prev), -2) + 1, index_b.get(match.get(nxt), -1) - 1):
+                if 0 <= y < len(order_b) and ka[lo] == kb[order_b[y]]:
+                    new += take(lo, order_b[y])
+                    break
+        if not new:
+            break
+    i = 0
+    while i < len(fa):
+        if fa[i][0] in match:
+            i += 1
+            continue
+        j = i
+        while j < len(fa) and fa[j][0] not in match:
+            j += 1
+        if i and j < len(fa):
+            after, before = index_b[match[fa[i - 1][0]]] + 1, index_b[match[fa[j][0]]]
+            if before - after == j - i:
+                for k in range(j - i):
+                    take(fa[i + k][0], order_b[after + k])
+        i = j
+
+    pairs, changed = [], []
+    for lo, hi in fa:
+        y = match.get(lo)
+        if y is None:
+            changed.append((lo, hi))
+            continue
+        if ka[lo] == kb[y]:
+            pairs.append((lo, hi, y, [(0, 0, len(ka[lo]), True)]))
+            continue
+        changed.append((lo, hi))
+        runs = []
+        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, ka[lo], kb[y], autojunk=False).get_opcodes():
+            if tag == 'equal' or (tag == 'replace' and i2 - i1 == j2 - j1):
+                runs.append((i1, j1, i2 - i1, tag == 'equal'))
+        pairs.append((lo, hi, y, runs))
+    return pairs, changed
+
+
+def merge(ranges):
+    out = []
+    for r in sorted(ranges, key=lambda r: r[1]):
+        if out and out[-1][0] == r[0] and out[-1][2] == r[1] and out[-1][3] == r[3]:
+            out[-1] = (r[0], out[-1][1], r[2], r[3])
+        else:
+            out.append(r)
+    return out
+
+
+def build(ntsc_path, pal_path, out):
+    a, b = Elf(ntsc_path), Elf(pal_path)
+    ranges, anchors = [], []
+
+    base_a, text_a = a.text
+    base_b, text_b = b.text
+    pairs, changed = match_code(a, b)
+    for lo, hi, y, runs in pairs:
+        for ia, ib, n, identical in runs:
+            ranges.append(('code', lo + ia * 4, lo + (ia + n) * 4, y - lo + (ib - ia) * 4))
+            if not identical:
+                continue
+            xa, xb = (lo - base_a) // 4 + ia, (y - base_b) // 4 + ib
+            anchors += addresses_named(lo + ia * 4, text_a[xa:xa + n], text_b[xb:xb + n], a.gp, b.gp)
+            for i, (wa, wb) in enumerate(zip(text_a[xa:xa + n], text_b[xb:xb + n])):
+                if wa >> 26 in (2, 3):
+                    anchors.append(((wa & 0x3FFFFFF) << 2, (wb & 0x3FFFFFF) << 2, lo + (ia + i) * 4))
+
+    flat_a = [(addr + 4 * i, w) for addr, words in a.initialised for i, w in enumerate(words)]
+    flat_b = [(addr + 4 * i, w) for addr, words in b.initialised for i, w in enumerate(words)]
+    for ia, ib, n, identical in aligned_runs([data_key(w) for _, w in flat_a], [data_key(w) for _, w in flat_b]):
+        start = 0
+        for k in range(1, n + 1):
+            if k == n or flat_a[ia + k][0] != flat_a[ia + k - 1][0] + 4 or flat_b[ib + k][0] != flat_b[ib + k - 1][0] + 4:
+                ranges.append(('data', flat_a[ia + start][0], flat_a[ia + k - 1][0] + 4, flat_b[ib + start][0] - flat_a[ia + start][0]))
+                start = k
+        for k in range(n if identical else 0):
+            wa, wb = flat_a[ia + k][1], flat_b[ib + k][1]
+            if IMAGE_LOW <= wa < IMAGE_HIGH and wa != wb:
+                anchors.append((wa, wb, flat_a[ia + k][0]))
+
+    ranges = merge(ranges)
+    starts = [r[1] for r in ranges]
+
+    def covering(address):
+        i = bisect.bisect_right(starts, address) - 1
+        return ranges[i] if i >= 0 and ranges[i][1] <= address < ranges[i][2] else None
+
+    fa = functions(a)
+    function_starts = [lo for lo, _ in fa]
+    differs, loose = set(), []
+    for x, y, where in anchors:
+        r = covering(x)
+        if r is None:
+            if a.bss(x) and b.bss(y) and x != y:
+                loose.append((x, y, where))
+            continue
+        if x == y or y - x == r[3] or (r[0] == 'code' and x & 3):
+            continue
+        differs.add(where)
+    bss = vote([(x, y) for x, y, where in loose if where not in differs], 'bss', b.zeroed[0][0] - a.zeroed[0][0])
+    bss_starts = [r[1] for r in bss]
+    for x, y, where in loose:
+        i = bisect.bisect_right(bss_starts, x) - 1
+        if i >= 0 and bss[i][1] <= x < bss[i][2] and y - x != bss[i][3]:
+            differs.add(where)
+    ranges = merge(ranges + bss)
+
+    changed = set(changed)
+    words = set()
+    for where in differs:
+        if base_a <= where < base_a + 4 * len(text_a):
+            i = bisect.bisect_right(function_starts, where) - 1
+            changed.add(fa[i])
+        else:
+            words.add((where, where + 4))
+    changed = sorted(changed | words)
+
+    with open(out, 'w') as f:
+        f.write('# %s -> %s: sc3_region_map.py build. <kind> <ntsc begin> <ntsc end> <offset>, the end excluded.\n'
+                % (Path(ntsc_path).name, Path(pal_path).name))
+        for kind, lo, hi, offset in ranges:
+            f.write('%s %#08x %#08x %s%#x\n' % (kind, lo, hi, '-' if offset < 0 else '+', abs(offset)))
+        for lo, hi in changed:
+            f.write('changed %#08x %#08x\n' % (lo, hi))
+    print('%d code runs, %d data runs, %d bss runs; %d of %d functions and %d data words differ beyond their place'
+          % (sum(r[0] == 'code' for r in ranges), sum(r[0] == 'data' for r in ranges), len(bss),
+             len(changed) - len(words), len(fa), len(words)))
+
+
+class Map:
+    def __init__(self, path):
+        self.ranges, self.changed = [], []
+        for line in Path(path).read_text().splitlines():
+            parts = line.split('#')[0].split()
+            if not parts:
+                continue
+            if parts[0] == 'changed':
+                self.changed.append((int(parts[1], 16), int(parts[2], 16)))
+            else:
+                self.ranges.append((parts[0], int(parts[1], 16), int(parts[2], 16), int(parts[3], 16)))
+        self.ranges.sort(key=lambda r: r[1])
+        self.starts = [r[1] for r in self.ranges]
+
+    def range(self, address):
+        i = bisect.bisect_right(self.starts, address) - 1
+        if i >= 0 and self.ranges[i][1] <= address < self.ranges[i][2]:
+            return self.ranges[i]
+        return None
+
+    def translate(self, address):
+        r = self.range(address)
+        return None if r is None else address + r[3]
+
+    def in_changed(self, address):
+        return next(((lo, hi) for lo, hi in self.changed if lo <= address < hi), None)
+
+
+def translate(path, addresses):
+    m = Map(path)
+    for text in addresses:
+        a = int(text, 16)
+        r, c = m.range(a), m.in_changed(a)
+        note = ' (changed function %#x-%#x)' % c if c else ''
+        print('%#08x -> %s%s' % (a, '%#08x %s' % (a + r[3], r[0]) if r else 'none', note))
+
+
+def word_at(elf, address):
+    base, words = elf.text
+    i = (address - base) // 4
+    return words[i] if 0 <= i < len(words) else None
+
+
+def symbols(path, ntsc_list, out):
+    """A "name 0xADDR" list (a symbol map, a reviewed list) with its addresses translated, its comments kept."""
+    m, lines, missing = Map(path), [], []
+    for line in Path(ntsc_list).read_text().splitlines():
+        parts = line.split()
+        if len(parts) < 2 or line.startswith('#'):
+            lines.append(line)
+            continue
+        y = m.translate(int(parts[1], 16))
+        if y is None:
+            missing.append(parts[0])
+            continue
+        lines.append(line.replace(parts[1], '%#x' % y, 1))
+    Path(out).write_text('\n'.join(lines) + '\n')
+    for name in missing:
+        print('%s: no place for %s' % (ntsc_list, name))
+    return 1 if missing else 0
+
+
+def patches(path, ntsc_patches, ntsc_path, pal_path, reviewed, out):
+    """An NTSC patch list (address, expected word, replacement) for the other release: each address translated, the
+    expected word read from that release (it may name another data address), a replacement jump's target translated.
+    Inside a function that changed, the translated place is a guess: when its word is not the patched instruction, the
+    same instruction is searched for in the 32 words around it, and a line with no single answer is left for review."""
+    m, a, b = Map(path), Elf(ntsc_path), Elf(pal_path)
+    by_hand = defaultdict(list)
+    for line in Path(reviewed).read_text().splitlines():
+        parts = line.split('#')[0].split()
+        if len(parts) >= 4:
+            y, expected = int(parts[1], 16), int(parts[2], 16)
+            if word_at(b, y) != expected:
+                raise SystemExit('%s: %#x holds %08x, not %08x' % (reviewed, y, word_at(b, y), expected))
+            by_hand[int(parts[0], 16)].append('%#x %#010x %#010x' % (y, expected, int(parts[3], 16)))
+    lines = ['# %s carried to %s by sc3_region_map.py patches, with %s: change those and run it again.'
+             % (Path(ntsc_patches).name, Path(pal_path).name, Path(reviewed).name)]
+    review = 0
+    for line in Path(ntsc_patches).read_text().splitlines():
+        parts = line.split('#')[0].split()
+        if len(parts) < 3:
+            lines.append(line)
+            continue
+        x, expected, replacement = (int(p, 16) for p in parts[:3])
+        if word_at(a, x) != expected:
+            raise SystemExit('%s: %#x holds %08x, not %08x' % (ntsc_patches, x, word_at(a, x), expected))
+        if x in by_hand:
+            lines += by_hand.pop(x)
+            continue
+        y = m.translate(x)
+        if replacement >> 26 in (2, 3):
+            target = m.translate((replacement & 0x3FFFFFF) << 2)
+            if target is None:
+                lines.append('# REVIEW %s: the jump target has no place' % line.strip())
+                review += 1
+                continue
+            replacement = (replacement & 0xFC000000) | (target >> 2)
+        found = word_at(b, y) if y is not None else None
+        if found is None or code_key(found) != code_key(expected):
+            near = [y + 4 * k for k in range(-32, 33) if word_at(b, y + 4 * k) == expected] if y is not None else []
+            if len(near) != 1:
+                lines.append('# REVIEW %s: %s' % (line.strip(), 'no place' if y is None else '%#x holds %08x' % (y, found)))
+                review += 1
+                continue
+            y, found = near[0], expected
+        lines.append('%#x %#010x %#010x' % (y, found, replacement))
+    for x in by_hand:
+        print('%s: %#x is no patch of %s' % (reviewed, x, ntsc_patches))
+        review += 1
+    Path(out).write_text('\n'.join(lines) + '\n')
+    print('%s: %d lines to review' % (out, review))
+    return 1 if review else 0
+
+
+def main(argv):
+    if len(argv) >= 4 and argv[0] == 'build':
+        build(*argv[1:4])
+    elif len(argv) >= 2 and argv[0] == 'translate':
+        translate(argv[1], argv[2:])
+    elif len(argv) >= 4 and argv[0] == 'symbols':
+        return symbols(*argv[1:4])
+    elif len(argv) >= 7 and argv[0] == 'patches':
+        return patches(*argv[1:7])
+    else:
+        print(__doc__)
+        return 2
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))
