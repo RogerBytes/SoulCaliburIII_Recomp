@@ -637,12 +637,8 @@ struct App
     // before the stamp existed counts as changed when the source has one.
     bool codeChanged() const { return built() && !sourceCommit.empty() && builtCommit != sourceCommit; }
 
-    std::string elf() const
-    {
-        const std::string europe = plat::str(plat::path(p.game) / L"SCES_533.12");
-        return exists(europe) ? europe : plat::str(plat::path(p.game) / L"SLUS_212.16");
-    }
     bool europe() const { return cfg.discRelease == "europe"; }
+    std::string elf() const { return plat::str(plat::path(p.game) / (europe() ? L"SCES_533.12" : L"SLUS_212.16")); }
     bool built() const { return exists(p.gameExe) && exists(elf()); }
     void saveConfig() { cfg.save(p.launcherIni); }
 
