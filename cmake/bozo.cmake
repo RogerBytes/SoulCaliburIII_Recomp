@@ -279,7 +279,7 @@ add_custom_command(
 add_custom_command(
     OUTPUT ${pack_dir}/sc3_2d.pack
     COMMAND ${CMAKE_COMMAND} -E make_directory ${pack_dir}
-    COMMAND ${pack_env} ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/scripts/sc3_2d_pack.py" "${SC3_DISC_DIR}" ${pack_dir}/sc3_2d.pack
+    COMMAND ${pack_env} ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/scripts/sc3_2d_pack.py" "${SC3_DISC_DIR}" ${pack_dir}/sc3_2d.pack --boot ${sc3_boot}
     DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_2d_pack.py" "${CMAKE_SOURCE_DIR}/scripts/sc3_texture_pack.py" "${CMAKE_SOURCE_DIR}/scripts/sc3_mesh_pack.py"
             "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" "${CMAKE_SOURCE_DIR}/bozo/port/sc3_addresses.txt" ${sc3_pack_disc}
     COMMENT "Building the 2D pack from the disc")

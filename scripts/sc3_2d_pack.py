@@ -187,10 +187,10 @@ def elf_image(path, address, size, partial=False):
     raise ValueError('%s: %#x + %#x not in a loaded segment' % (path, address, size))
 
 
-def elf_files(disc):
-    """The disc's ELF and its texture files' addresses, or (None, [])."""
+def elf_files(disc, boot=None):
+    """The disc's ELF (boot, else the one in the disc dir) and its texture files' addresses, or (None, [])."""
     for name, column in ELF_COLUMNS.items():
-        if os.path.exists(os.path.join(disc, name)):
+        if (boot is None or name == boot) and os.path.exists(os.path.join(disc, name)):
             import sc3_region_map
             return os.path.join(disc, name), sc3_region_map.Addresses(ADDRESSES).values(column)['ElfTextures']
     return None, []
@@ -256,6 +256,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     parser.add_argument('disc')
     parser.add_argument('out')
+    parser.add_argument('--boot', choices=sorted(ELF_COLUMNS), help='the boot ELF the build is for (default: the one in the disc dir)')
     parser.add_argument('--only', default='', help='comma-separated leaf paths (/2/17,...)')
     parser.add_argument('--jobs', type=int, default=os.cpu_count() or 1, help='leaves converted at once (default: all cores)')
     args = parser.parse_args()
@@ -264,7 +265,7 @@ def main():
     with open(olk, 'rb') as f:
         listed = olk_leaves(f)
     jobs = [(olk, path, offset, size) for path, offset, size in listed if size and (not only or path in only)]
-    elf, addresses = elf_files(args.disc)
+    elf, addresses = elf_files(args.disc, args.boot)
     if elf:
         jobs += [(elf, 'elf/%x' % address, address, elf_file_size(elf, address, addresses)) for address in addresses
                  if not only or 'elf/%x' % address in only]
