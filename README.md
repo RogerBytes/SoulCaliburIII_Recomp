@@ -115,8 +115,11 @@ disc. On 8 threads (Ryzen 7 7800X3D) a build from nothing took 649 s, 550 of the
 
 | Key | |
 |---|---|
-| F2 | Settings: controls, video |
+| F2 | Settings: controls, video, save states |
 | F3 | Frame rate overlay |
+| F5 | Save state in the current slot |
+| F6, Shift+F6 | Next, previous slot (0-9) |
+| F7 | Load state from the current slot |
 | F11, Alt+Enter | Full screen |
 
 A controller is used when one is connected, otherwise the keyboard; both are rebound in the settings window and kept
@@ -135,7 +138,7 @@ first time it appears) and take GPU memory: on the route about 53 MB of textures
 |---|---|---|
 | User folder | `$XDG_DATA_HOME/soulcalibur3_recomp` (`~/.local/share/soulcalibur3_recomp`) | `%APPDATA%\SoulCaliburIII_Recomp` |
 
-It holds the memory cards (`mc0/`, `mc1/`), `input.ini`, `video.ini` and the logs. It is the same folder, with the same
+It holds the memory cards (`mc0/`, `mc1/`), the save states (`states/`), `input.ini`, `video.ini` and the logs. It is the same folder, with the same
 card layout, as the PS2Recomp build's.
 
 ## Build (developers)
@@ -178,12 +181,19 @@ Windows).
 sc3 [--iso image] [--elf SLUS_212.16] [--card-dir dir] [--width w --height h] [--fullscreen] [--no-vsync]
     [--render-scale s] [--capture-dir dir] [--capture-frames n,n,...] [--quit-after n] [--pad-script [n=]file]...
     [--print] [--no-sound] [--audio-latency ms] [--wav file]
+    [--save-state file --save-state-at n] [--load-state file [--load-state-at n]]
 sc3-headless --frames n [--iso image] [--pad-script file] [--out run.ref] [--dump-ram dir] [--profile-io] [--wav file] ...
 ```
 
 The disc image is `--iso`, else `SC3_ISO`, else the build's, else the one `.iso` beside the ELF. The packs are the
 variables below, else `packs/` beside the program; the symbol map `SC3_SYMBOL_MAP`, else `sc3_symbols.txt` beside it.
 `sc3-headless` runs on the game's own clock and is deterministic: two runs give the same `--out` record.
+A save state (BozoEngine's, `BozoEngine/docs/save-states.md`) is the whole run at a frame: `--save-state` writes one
+when `--save-state-at` frames have ended, `--load-state` loads one before the first frame or, with `--load-state-at`,
+when that many have. A state loads only into the same build with the same packs. A save waits while a movie plays
+(the menus' looping ones too). A headless run that loads a state goes on exactly as the run that saved it: on the
+route, saved in the Practice fight at frame 9000, the RAM at 9500 and 10500 is the same loaded in a new process or
+mid-run.
 
 <details>
 <summary><b>Environment variables</b></summary>

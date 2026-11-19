@@ -17,4 +17,5 @@ namespace sc3::textures
     void noteRequest(R5900Context *ctx);
     void noteReadBefore(uint8_t *rdram, R5900Context *ctx);
     void noteCopy(uint8_t *rdram, R5900Context *ctx);
+    void state(bozo::state::Archive &a, uint8_t *rdram);
 }

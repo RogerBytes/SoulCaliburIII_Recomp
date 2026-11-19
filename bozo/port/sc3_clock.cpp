@@ -100,6 +100,8 @@ namespace sc3::clock
         return since(rdram, ctx, runtime, 0x100u);
     }
 
+    void state(bozo::state::Archive &a) { bozo::state::fields(a, g_lastLines, g_lastCount, g_clockStart, g_clockBase); }
+
     void install(Registry &runtime)
     {
         runtime.registerFunction(kLines, &linesCall);

@@ -203,6 +203,8 @@ namespace sc3::frame
         }
     }
 
+    void state(bozo::state::Archive &a) { bozo::state::fields(a, g_frameOpen); }
+
     void install(Registry &runtime)
     {
         runtime.registerFunction(kInitSys, &initSys);

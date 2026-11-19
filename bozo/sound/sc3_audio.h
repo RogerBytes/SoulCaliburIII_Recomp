@@ -14,4 +14,6 @@ namespace sc3::audio
     std::vector<bozo::native::irx::Image> images();
     bozo::native::irx::CompiledLibraries &attach(bozo::libs::Libraries &libraries);
     std::string moduleName(const std::string &path);
+    void state(bozo::state::Archive &a);
+    std::string unsaveable();
 }

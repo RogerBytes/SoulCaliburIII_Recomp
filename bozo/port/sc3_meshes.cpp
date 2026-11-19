@@ -3,6 +3,7 @@
 // game links the part's packet. RECOMP_NOTES "Native meshes". No VIF or GIF packet is read or needed: there is no VU1 path.
 #include "sc3_draw.h"
 #include "sc3_meshes.h"
+#include "sc3_state.h"
 #include "sc3_textures.h"
 
 #include "bozo/render/mesh_pack.h"
@@ -1710,6 +1711,39 @@ namespace sc3
             return;
         g_state.rdram = rdram;
         copy(ctx);
+    }
+
+    void meshes::state(bozo::state::Archive &a)
+    {
+        State &s = g_state;
+        imagesState(a, s.loaded, s.pack);
+        leavesState(a, s.leaves);
+        bozo::state::fields(a, s.olkLbn, s.requestDest, s.requestPos, s.requestPending);
+        bozo::state::pod(a, s.header);
+        bozo::state::pod(a, s.material);
+        bozo::state::pod(a, s.bones);
+        bozo::state::fields(a, s.boneBase, s.boneIndices, s.boneCount, s.noFog, s.gameAlpha, s.gameTest, s.gameAlphaKnown, s.gameTestKnown);
+        bozo::state::pod(a, s.clip);
+        const uint64_t copies = bozo::state::count(a, s.copies.size());
+        if (a.loading())
+            s.copies.assign(copies, {});
+        for (State::Copy &copy : s.copies)
+        {
+            bool file = copy.image.file != nullptr;
+            bozo::state::fields(a, copy.image.base, copy.image.size, copy.image.index, file, copy.to, copy.size);
+            if (a.loading())
+            {
+                if (file && copy.image.index >= s.pack.files().size())
+                    throw bozo::state::Error("save state: a model copy of a file the mesh pack does not have");
+                copy.image.file = file ? &s.pack.files()[copy.image.index] : nullptr;
+            }
+        }
+        bozo::state::fields(a, s.frames, g_depthMasked);
+        if (a.loading())
+        {
+            s.unflushed.clear();
+            s.pendingDraws.clear();
+        }
     }
 
     void meshes::shutdown()

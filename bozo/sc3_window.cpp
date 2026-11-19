@@ -4,15 +4,12 @@
 //
 //   sc3 [--iso image] [--elf SLUS_212.16] [--card-dir dir] [--width w --height h] [--fullscreen] [--no-vsync]
 //       [--render-scale s] [--capture-dir dir] [--capture-frames n,n,...] [--quit-after n] [--pad-script [n=]file]...
-//       [--print] [--no-sound] [--audio-latency ms] [--wav file]
+//       [--print] [--no-sound] [--audio-latency ms] [--wav file] [--save-state file --save-state-at n]
+//       [--load-state file [--load-state-at n]]  F5 saves, F7 loads, F6 / Shift+F6 pick the slot
 //
 // The user folder is SoulCaliburIII_Recomp (PS2X_USER_DIR overrides it): input.ini, video.ini,
 // the memory cards (mc0, mc1) and the logs.
 #include "sc3_main.h"
-
-#ifdef SC3_NATIVE_SOUND
-#include "sc3_audio.h"
-#endif
 
 #include "bozo/app/app.h"
 #include "bozo/app/audio_device.h"
@@ -107,11 +104,12 @@ int main(int argc, char **argv)
             audio.latencyMs = std::stod(value());
         else if (a == "--wav")
             wavPath = value();
-        else
+        else if (!sc3::stateOption(a, value, opt))
         {
             std::fprintf(stderr, "usage: sc3 [--iso image] [--elf path] [--card-dir dir] [--width w] [--height h] [--fullscreen] "
                                  "[--no-vsync] [--render-scale s] [--capture-dir dir] [--capture-frames n,n,...] [--quit-after n] "
-                                 "[--pad-script [n=]file]... [--print] [--no-sound] [--audio-latency ms] [--wav file]\n");
+                                 "[--pad-script [n=]file]... [--print] [--no-sound] [--audio-latency ms] [--wav file] "
+                                 "[--save-state file --save-state-at n] [--load-state file [--load-state-at n]]\n");
             return 2;
         }
     }
@@ -154,11 +152,18 @@ int main(int argc, char **argv)
     if (!sc3::installPort("sc3", registry))
         return 2;
 
+    opt.gameTag = sc3::kGameTag;
     bozo::host::FreeHost host(opt);
+    host.onStateMessage = [](bool, const std::string &message)
+    {
+        std::fprintf(stderr, "[state] %s\n", message.c_str());
+        bozo::app::notify(message);
+    };
 #ifdef SC3_NATIVE_SOUND
     sc3::audio::attach(host.libraries());
 #endif
     bozo::ee::Dispatcher d(host);
+    sc3::addStateSection(host, &d.runtime());
     d.setFunctions(sc3_function_table, sc3_function_count, sc3_resume_table, sc3_resume_count);
     std::string error;
     if (!host.setUp(d, sc3_external_table, sc3_external_count, &registry, error))
@@ -199,6 +204,8 @@ int main(int argc, char **argv)
         return host.endReason().rfind("FAULT", 0) == 0 ? 1 : 0;
     };
     game.stop = [&] { host.requestStop(); };
+    game.saveState = [&](int slot) { host.requestSave(bozo::app::stateSlotPath(slot)); };
+    game.loadState = [&](int slot) { host.requestLoad(bozo::app::stateSlotPath(slot)); };
     game.framesEnded = [&] { return host.framesEnded(); };
     return bozo::app::runWindow(window, game, &pad);
 }

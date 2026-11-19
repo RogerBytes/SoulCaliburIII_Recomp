@@ -229,6 +229,20 @@ namespace sc3::ot
             bucket.clear();
     }
 
+    void stateLoaded()
+    {
+        for (FrameMirror &frame : g_state.frames)
+        {
+            frame.gif.reset();
+            frame.vif[0].reset();
+            frame.vif[1].reset();
+            for (std::vector<Draw> &bucket : frame.buckets)
+                bucket.clear();
+            frame.usedBuckets.clear();
+            frame.draws = 0;
+        }
+    }
+
     // SC3_HOLD_FRAMES=n,n,..: the game stands at those frames' ends for a while, so that the window's capture by frame has that
     // frame's picture and no later one (the game runs faster than the window presents).
     void holdStill()

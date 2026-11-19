@@ -50,6 +50,8 @@ namespace sc3::textures
         uint64_t g_calls = 0, g_packed = 0;
         std::map<uint32_t, uint64_t> g_unknownCalls;
 
+        void io(bozo::state::Archive &a, Read &read) { bozo::state::fields(a, read.end, read.olk); }
+
         uint32_t peek32(uint32_t address)
         {
             uint32_t value = 0;
@@ -212,6 +214,17 @@ namespace sc3::textures
             }
         }
         return nullptr;
+    }
+
+    void state(bozo::state::Archive &a, uint8_t *rdram)
+    {
+        bozo::state::fields(a, g_olkLbn, g_requestDest, g_requestPos, g_requestPending, g_reads, g_frames);
+        if (!a.loading())
+            return;
+        g_rdram = rdram;
+        g_building.clear();
+        if (g_packOwner)
+            g_pack.forgetLive();
     }
 
     void install(Registry &runtime)

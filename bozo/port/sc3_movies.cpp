@@ -710,6 +710,24 @@ namespace sc3::movies
 #endif
     }
 
+    void stateLoaded()
+    {
+#ifdef SC3_HAVE_FFMPEG
+        while (!g_players.empty())
+            stopPlayer(g_players.begin()->first);
+        g_audioTicks = g_audioPushed = 0;
+#endif
+    }
+
+    std::string unsaveable()
+    {
+#ifdef SC3_HAVE_FFMPEG
+        if (!g_players.empty())
+            return "a movie is playing";
+#endif
+        return {};
+    }
+
     void shutdown()
     {
 #ifdef SC3_HAVE_FFMPEG

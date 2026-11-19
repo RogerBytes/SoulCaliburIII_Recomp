@@ -13,6 +13,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
   card folders.
 
 ### Added
+- Save states: F5 saves, F7 loads, F6 / Shift+F6 pick one of ten slots, also in the settings window (F2); kept in the
+  user folder's `states/`. `--save-state` and `--load-state` for scripted runs. A save waits while a movie plays.
 - Texture upscaling, off by default: the game's textures drawn from 2x or 4x copies (edge-directed or smooth filter),
   in the launcher's settings, the Video tab (F2) and `video.ini`.
 - The game on BozoEngine: the whole executable recompiled (16,656 functions), every library answered natively, the
