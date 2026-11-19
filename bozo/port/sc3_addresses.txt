@@ -229,7 +229,9 @@ FontFile               0x004763B0 0x0047BBB0
 ElfTextures[]          0x004AF170 0x004B4970
 IconFile               0x004AF170 0x004B4970
 ShadowFighter1         0x004B487C 0x004BA07C
+Fighter1Light          0x004B6954 0x004BC154  # a float the shadow pass compares with -1 to pick the light slot: ShadowFighter1 + 0x20D8
 ShadowFighter2         0x004D1FFC 0x004D77FC
+Fighter2Light          0x004D40D4 0x004D98D4  # the same field: ShadowFighter2 + 0x20D8
 ShadowWanted           0x004F8402 0x004FDC02
 ShadowFlags            0x004F8403 0x004FDC03
 MwPlySlots             0x0054D6C4 0x0054E714

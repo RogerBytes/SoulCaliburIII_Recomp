@@ -396,7 +396,7 @@ namespace sc3::offscreen
             else
             {
                 const float z = fp::ps2_fmul(0.1f, 0.12f);
-                ot::linkLayerBucket(rdram, fp::ps2FpuCvtWS(fp::ps2_fmul(z, peekFloat(0x005BE734u))), std::move(draw));
+                ot::linkLayerBucket(rdram, fp::ps2FpuCvtWS(fp::ps2_fmul(z, peekFloat(addr::Renderer + 0x34u))), std::move(draw));
             }
         }
 
@@ -441,8 +441,8 @@ namespace sc3::offscreen
                 copy16(from, slot(0x80000002u));
             }
             uint32_t a = slot(0x80000002u), b = slot(0x80000004u);
-            uint32_t lights = peekFloat(0x004B6954u) < -1.0f ? 1u : 0u;
-            if (peekFloat(0x004D40D4u) < -1.0f)
+            uint32_t lights = peekFloat(addr::Fighter1Light) < -1.0f ? 1u : 0u;
+            if (peekFloat(addr::Fighter2Light) < -1.0f)
                 lights |= 2u;
             if (lights == 1u)
                 a = b;
