@@ -77,7 +77,10 @@ def aligned_runs(a, b):
         fa, fb = Path(tmp, 'a'), Path(tmp, 'b')
         fa.write_text(''.join('%s\n' % k for k in a))
         fb.write_text(''.join('%s\n' % k for k in b))
-        out = subprocess.run(['diff', '--minimal', str(fa), str(fb)], capture_output=True, text=True).stdout
+        done = subprocess.run(['diff', '--minimal', str(fa), str(fb)], capture_output=True, text=True)
+        if done.returncode not in (0, 1):
+            raise SystemExit('diff failed: %s' % done.stderr.strip())
+        out = done.stdout
     runs, ia, ib = [], 0, 0
     for line in out.splitlines():
         if not line or not line[0].isdigit():
