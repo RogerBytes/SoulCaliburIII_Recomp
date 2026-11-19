@@ -29,6 +29,7 @@ namespace sc3
         if (!a.loading())
             return;
         ot::stateLoaded();
+        movies::stateLoaded();
         draw::releaseKeyed();
     }
 

@@ -65,6 +65,7 @@ namespace sc3
         bool picture(PS2Runtime *runtime, uint32_t handle, uint32_t known, std::vector<uint32_t> &rgba, uint32_t &width, uint32_t &height, uint32_t &number);
         void shutdown();
         std::string unsaveable();
+        void stateLoaded();
     }
     namespace audio { void install(Registry &runtime); }
     void statsLine(const char *format, ...) __attribute__((format(printf, 1, 2)));

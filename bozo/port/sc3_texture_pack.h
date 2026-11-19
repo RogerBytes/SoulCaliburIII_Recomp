@@ -55,7 +55,7 @@ namespace sc3
         TexturePtr texture(const Entry &entry, uint64_t tex0, uint32_t width, uint32_t height,
                                                    const GameData *game = nullptr);
         LiveStats takeLiveStats();
-        void forgetLive() { m_live.clear(); }
+        void forgetLive();
 
         struct Key
         {

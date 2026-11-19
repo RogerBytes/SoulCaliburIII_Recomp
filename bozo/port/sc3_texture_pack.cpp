@@ -268,6 +268,12 @@ namespace sc3
         return live.texture = changed->second->rgba.empty() ? nullptr : changed->second;
     }
 
+    void TextureKeys::forgetLive()
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_live.clear();
+    }
+
     TextureKeys::LiveStats TextureKeys::takeLiveStats()
     {
         std::lock_guard<std::mutex> lock(m_mutex);

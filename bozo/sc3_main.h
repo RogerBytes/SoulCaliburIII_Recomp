@@ -159,7 +159,6 @@ namespace sc3
                          reason.empty() ? "every thread ended" : reason.c_str());
     }
 
-    // --save-state file --save-state-at n, --load-state file [--load-state-at n]: false when `option` is none of them.
     template <typename Value>
     bool stateOption(const std::string &option, Value value, bozo::host::FreeOptions &options)
     {

@@ -148,7 +148,9 @@ namespace sc3
                 uint32_t file = 0, page = 0, clut = 0;
                 bool absolute = false; // clut is the CBP itself
                 bool resolved = false; // resolvedPage is the copied page, found while its file was there
-                uint32_t block = 0, cbp = ~0u; // what resolvedPage was found from
+                uint32_t block = 0, cbp = ~0u;
+                bool imageFound = false;
+                packs::LoadedImages::Image image;
                 Page resolvedPage;
             };
             std::map<uint32_t, PageCopy> pageCopies; // 0x119318's copies of page blocks, by where they went
@@ -179,11 +181,23 @@ namespace sc3
             uint64_t movieCopiesSkipped = 0, movieTextures = 0, movieChecks = 0, movieTexelsDiffering = 0, frameTextures = 0;
         };
 
-        void io(bozo::state::Archive &a, State::PageCopy &copy) { bozo::state::fields(a, copy.file, copy.page, copy.clut, copy.absolute, copy.resolved, copy.block, copy.cbp); }
         void io(bozo::state::Archive &a, State::Movie &movie) { bozo::state::fields(a, movie.number, movie.slot, movie.copied); }
 
         std::optional<State> g_owner{std::in_place};
         State &g_state = *g_owner;
+
+        void io(bozo::state::Archive &a, State::PageCopy &copy)
+        {
+            bool file = copy.image.file != nullptr;
+            bozo::state::fields(a, copy.file, copy.page, copy.clut, copy.absolute, copy.resolved, copy.block, copy.cbp, copy.imageFound,
+                                copy.image.base, copy.image.size, copy.image.index, file);
+            if (!a.loading())
+                return;
+            const auto &files = g_state.pack.files();
+            if (file && copy.image.index >= files.size())
+                throw bozo::state::Error("save state: a page copy from a file the 2D pack does not have");
+            copy.image.file = file ? &files[copy.image.index] : nullptr;
+        }
 
         RecompiledFunction originalOf(uint32_t address)
         {
@@ -335,6 +349,7 @@ namespace sc3
         // The page `index` of a texture file (0x1177E0's choice: the last one past its count) from the 2D pack, its texture
         // the one the file's own uploads write (decoded on first use, kept for the program's life).
         bool blockPage(uint32_t block, Page &out, BuilderStats &stats, uint32_t cbp);
+        bool imagePage(const packs::LoadedImages::Image *found, uint32_t block, Page &out, BuilderStats &stats, uint32_t cbp);
         bool moviePage(uint32_t block, Page &out);
         bool framePage(Page &out);
 
@@ -374,10 +389,19 @@ namespace sc3
         // A register block inside a loaded leaf, as the 2D pack has it (a page's TEX0 / TEX1 / CLAMP and its texture).
         bool blockPage(uint32_t block, Page &out, BuilderStats &stats, uint32_t cbp)
         {
+            packs::LoadedImages::Image image;
+            const bool found = g_state.loaded.find(block, image);
+            return imagePage(found ? &image : nullptr, block, out, stats, cbp);
+        }
+
+        bool imagePage(const packs::LoadedImages::Image *found, uint32_t block, Page &out, BuilderStats &stats, uint32_t cbp)
+        {
             State &s = g_state;
             packs::LoadedImages::Image image;
+            if (found)
+                image = *found;
             const packs::RegisterBlock *registers = nullptr;
-            if (s.loaded.find(block, image))
+            if (found)
             {
                 registers = image.file ? image.file->block(block - image.base) : nullptr;
                 if (!registers)
@@ -2420,7 +2444,7 @@ namespace sc3
         // when the copy is made: the file it came from can be gone by the time the copy is drawn.
         bool copiedBlockPage(const State::PageCopy &copy, Page &out, BuilderStats &stats)
         {
-            if (!blockPage(copy.block, out, stats, copy.cbp))
+            if (!imagePage(copy.imageFound ? &copy.image : nullptr, copy.block, out, stats, copy.cbp))
                 return false;
             if (copy.cbp != ~0u)
                 out.tex0 = (out.tex0 & ~(0x3FFFull << 37)) | (static_cast<uint64_t>(copy.cbp) << 37);
@@ -2430,7 +2454,10 @@ namespace sc3
         bool resolveCopy(State::PageCopy &copy, Page &out, BuilderStats &stats)
         {
             Page base;
-            if (!pageBlock(copy.file, copy.page, copy.block, stats) || !blockPage(copy.block, base, stats, ~0u))
+            if (!pageBlock(copy.file, copy.page, copy.block, stats))
+                return false;
+            copy.imageFound = g_state.loaded.find(copy.block, copy.image);
+            if (!imagePage(copy.imageFound ? &copy.image : nullptr, copy.block, base, stats, ~0u))
                 return false;
             if (copy.clut == 0u && !copy.absolute)
             {
