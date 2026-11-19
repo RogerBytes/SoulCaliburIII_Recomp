@@ -460,6 +460,10 @@ def addresses(argv):
 FN = re.compile(r'\bfn::(\w+)')
 
 
+def serial(elf):
+    return elf.replace('_', '-').replace('.', '')
+
+
 def header(argv):
     """sc3_region.h: the build's release, the table's column for it as sc3::addr, and as sc3::fn the generated function
     at each address the port calls (fn::Name in its sources)."""
@@ -505,11 +509,13 @@ def header(argv):
             '#pragma once\n\n#include "sc3_functions.h"\n\n#include <cstdint>\n\n'
             'namespace sc3::region\n{\n'
             '    inline constexpr const char *kTitle = "%s";\n'
-            '    inline constexpr const char *kBootElf = "%s";\n}\n\n'
+            '    inline constexpr const char *kBootElf = "%s";\n'
+            '    inline constexpr const char *kSerial = "%s";\n}\n\n'
             'namespace sc3::addr\n{\n%s}\n\n'
             'namespace sc3::fn\n{\n'
             '    using GuestFunction = void (*)(uint8_t *, R5900Context *, Runtime *);\n%s}\n'
-            % (Path(args.out).name, args.elf, Path(args.table).name, args.title, args.elf, ''.join(rows), functions))
+            % (Path(args.out).name, args.elf, Path(args.table).name, args.title, args.elf, serial(args.elf), ''.join(rows),
+               functions))
     out = Path(args.out)
     if not out.exists() or out.read_text(encoding='utf-8') != text:
         out.write_text(text, encoding='utf-8', newline='\n')

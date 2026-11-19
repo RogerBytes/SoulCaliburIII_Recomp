@@ -27,7 +27,7 @@
 
 namespace sc3
 {
-    constexpr const char *kGameTag = "SLUS-21216";
+    constexpr const char *kGameTag = region::kSerial;
 
     // SC3_SYMBOL_MAP, else sc3_symbols.txt beside the program, else the build's own map.
     inline void useSymbolMap(bozo::host::FreeOptions &options, const char *program)

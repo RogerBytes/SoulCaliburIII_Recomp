@@ -184,11 +184,11 @@ class RegionMapTest(unittest.TestCase):
         out = self.folder / 'sc3_region.h'
         for column, expected in (('ntsc', ('F2 = 0x00100028u;', 'Data[] = {0x00110000u, 0x00110008u};', '&::func_0x100028;')),
                                  ('pal', ('F2 = 0x0010002Cu;', 'Data[] = {0x00110010u, 0x00110018u};', '&::f2_0x10002c;'))):
-            code, _ = self.call(region.header, out, '--title', 'T', '--elf', 'E', '--table', table, '--column', column,
-                               '--symbols', symbols, '--sources', port)
+            code, _ = self.call(region.header, out, '--title', 'T', '--elf', 'SCES_533.12', '--table', table, '--column',
+                               column, '--symbols', symbols, '--sources', port)
             self.assertEqual(code, 0)
             text = out.read_text()
-            for line in expected:
+            for line in expected + ('kSerial = "SCES-53312";',):
                 self.assertIn(line, text)
 
     def test_header_refuses_a_call_the_table_does_not_name(self):
