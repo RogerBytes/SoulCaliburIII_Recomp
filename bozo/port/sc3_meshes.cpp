@@ -31,21 +31,7 @@ namespace sc3
     {
         using namespace sc3::draw;
         using namespace sc3::fp;
-        constexpr uint32_t kFrameKick = 0x0010F098u;
-        constexpr uint32_t kFileRequest = 0x00150418u;
-        constexpr uint32_t kCdRead = 0x00424E28u;
-        constexpr uint32_t kRawPart = 0x0010A178u;
-        constexpr uint32_t kRawPartTail = 0x00109990u;
-        constexpr uint32_t kChainPart = 0x0010A4E8u;
-        constexpr uint32_t kPacketFlush = 0x0010F8B8u;
-        constexpr uint32_t kRegisterPacket = 0x001276E8u;
-        constexpr uint32_t kOtInsertDepth = 0x0010D9A0u;
-        constexpr uint32_t kOtInsertFixed = 0x0010DC90u;
-        constexpr uint32_t kClipper = 0x0010B970u;
-        constexpr uint32_t kClipEmit = 0x0010B7E0u;
         constexpr uint32_t kClipVertexStride = 0x50u;
-        constexpr uint32_t kRelocate = 0x0014A7D8u;
-        constexpr uint32_t kCopy = 0x0012FE98u;
         constexpr uint32_t kModelCopyMin = 0x1000u;
         constexpr uint32_t kScratchpad = 0x70000000u;
         constexpr uint32_t kSector = 2048u;
@@ -166,18 +152,18 @@ namespace sc3
 
         void callOriginal(uint32_t address, uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
-            if (address == kRawPart)
-                func_0x10a178(rdram, ctx, runtime);
-            else if (address == kRawPartTail)
-                func_0x109990(rdram, ctx, runtime);
-            else if (address == kChainPart)
-                func_0x10a4e8(rdram, ctx, runtime);
-            else if (address == kRelocate)
-                func_0x14a7d8(rdram, ctx, runtime);
-            else if (address == kClipper)
-                func_0x10b970(rdram, ctx, runtime);
+            if (address == addr::RawPart)
+                fn::RawPart(rdram, ctx, runtime);
+            else if (address == addr::RawPartTail)
+                fn::RawPartTail(rdram, ctx, runtime);
+            else if (address == addr::ChainPart)
+                fn::ChainPart(rdram, ctx, runtime);
+            else if (address == addr::Relocate)
+                fn::Relocate(rdram, ctx, runtime);
+            else if (address == addr::Clipper)
+                fn::Clipper(rdram, ctx, runtime);
             else
-                func_0x10b7e0(rdram, ctx, runtime);
+                fn::ClipEmit(rdram, ctx, runtime);
         }
 
         void packetFlush(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
@@ -362,7 +348,7 @@ namespace sc3
                     at += size;
                 }
             }
-            callOriginal(kRelocate, rdram, ctx, runtime);
+            callOriginal(addr::Relocate, rdram, ctx, runtime);
         }
 
         // ---- 0x10AD18 in C++: the header a part's setup loads, from the renderer's state in the scratchpad
@@ -1291,7 +1277,7 @@ namespace sc3
             if (drawRawPart(rdram, ctx, runtime))
                 return;
             ++g_state.stats.leftToVu1;
-            callOriginal(kRawPart, rdram, ctx, runtime);
+            callOriginal(addr::RawPart, rdram, ctx, runtime);
         }
 
         // 0x1088A0 drains the parts deferred for clipping against the near plane: each one's raw data goes to the scratchpad,
@@ -1305,7 +1291,7 @@ namespace sc3
             s.clip.address = peek32(entry + 4u) & kRamMask;
             s.clip.qwc = peek32(entry + 8u);
             s.clip.valid = s.clip.flags == getRegU32(ctx, 4);
-            callOriginal(kClipper, rdram, ctx, runtime);
+            callOriginal(addr::Clipper, rdram, ctx, runtime);
         }
 
         bool drawClipped(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
@@ -1373,7 +1359,7 @@ namespace sc3
             const uint32_t flags = sp32(0x1BFCu);
             if (flags == kSkipPartList || !(flags & kFlagRaw))
             {
-                callOriginal(kRawPartTail, rdram, ctx, runtime);
+                callOriginal(addr::RawPartTail, rdram, ctx, runtime);
                 return;
             }
             const uint32_t command = getRegU32(ctx, 4);
@@ -1514,7 +1500,7 @@ namespace sc3
                 return;
             ++s.stats.routinesLeft[((flags & kFlagProgramA) ? 0u : 0x10000u) | (flags & 0xFFFFu)];
             ++s.stats.leftToVu1;
-            callOriginal(kChainPart, rdram, ctx, runtime);
+            callOriginal(addr::ChainPart, rdram, ctx, runtime);
         }
 
         // ZBUF_1's ZMSK where the game's list writes it (0x1276E8, in the VIF1 list), for the draws played after it.
@@ -1524,7 +1510,7 @@ namespace sc3
         {
             const uint32_t reg = getRegU32(ctx, 4);
             const uint64_t value = getRegU32(ctx, 5) | (static_cast<uint64_t>(ctx->r[5].uw[1]) << 32);
-            func_0x1276e8(rdram, ctx, runtime);
+            fn::RegisterPacket(rdram, ctx, runtime);
             if (reg == 0x4Eu)
             {
                 const bool masked = ((value >> 32) & 1u) != 0u;
@@ -1556,7 +1542,7 @@ namespace sc3
                     ++s.stats.drawsSubmitted;
             s.unflushed.clear();
             s.pendingDraws.clear();
-            func_0x10f8b8(rdram, ctx, runtime);
+            fn::PacketFlush(rdram, ctx, runtime);
         }
 
         void linkUnflushed(uint8_t *rdram, int bucket)
@@ -1571,7 +1557,7 @@ namespace sc3
 
         float otScale()
         {
-            const uint32_t bits = peek32(0x005BE700u + 0x34u);
+            const uint32_t bits = peek32(addr::Renderer + 0x34u);
             float scale;
             std::memcpy(&scale, &bits, 4);
             return scale;
@@ -1782,16 +1768,16 @@ namespace sc3
             return;
         }
         g_ready = true;
-        runtime.registerFunction(kRawPart, &hooked<rawPart>);
-        runtime.registerFunction(kRawPartTail, &hooked<rawPartTail>);
-        runtime.registerFunction(kChainPart, &hooked<chainPart>);
-        runtime.registerFunction(kRelocate, &hooked<relocate>);
-        runtime.registerFunction(kClipper, &hooked<clipper>);
-        runtime.registerFunction(kClipEmit, &hooked<clipEmit>);
-        runtime.registerFunction(kPacketFlush, &hooked<packetFlush>);
-        runtime.registerFunction(kRegisterPacket, &hooked<registerPacket>);
-        runtime.registerFunction(kOtInsertDepth, &hooked<otInsertDepth>);
-        runtime.registerFunction(kOtInsertFixed, &hooked<otInsertFixed>);
+        runtime.registerFunction(addr::RawPart, &hooked<rawPart>);
+        runtime.registerFunction(addr::RawPartTail, &hooked<rawPartTail>);
+        runtime.registerFunction(addr::ChainPart, &hooked<chainPart>);
+        runtime.registerFunction(addr::Relocate, &hooked<relocate>);
+        runtime.registerFunction(addr::Clipper, &hooked<clipper>);
+        runtime.registerFunction(addr::ClipEmit, &hooked<clipEmit>);
+        runtime.registerFunction(addr::PacketFlush, &hooked<packetFlush>);
+        runtime.registerFunction(addr::RegisterPacket, &hooked<registerPacket>);
+        runtime.registerFunction(addr::OtInsertDepth, &hooked<otInsertDepth>);
+        runtime.registerFunction(addr::OtInsertFixed, &hooked<otInsertFixed>);
         std::fprintf(stderr, "[sc3:mesh] native meshes: %s, %zu leaves, %zu objects\n", path, s.pack.files().size(), s.pack.objectCount());
     }
 }

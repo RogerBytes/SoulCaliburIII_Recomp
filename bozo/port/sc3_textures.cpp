@@ -16,12 +16,7 @@ namespace sc3::textures
 {
     namespace
     {
-        constexpr uint32_t kGifPacketClose = 0x0010F808u;
         constexpr uint32_t kModelCopyMin = 0x1000u;
-        constexpr uint32_t kTextureCall = 0x00104DCCu;
-        constexpr uint32_t kAnimatedTextureCall = 0x00104E48u;
-        constexpr uint32_t kTextureCallOt = 0x00104E94u;
-        constexpr uint32_t kAnimatedTextureCallOt = 0x00104E34u;
         constexpr uint32_t kSector = 2048u;
 
         struct Group
@@ -110,9 +105,9 @@ namespace sc3::textures
         uint32_t callTarget(R5900Context *ctx, uint32_t ra)
         {
             const uint32_t command = getRegU32(ctx, 20);
-            if (ra == kTextureCall)
+            if (ra == addr::TextureCall)
                 return peek32(command - 8u);
-            if (ra == kTextureCallOt)
+            if (ra == addr::TextureCallOt)
                 return peek32(command - 4u);
             const uint32_t table = peek32(command + 4u);
             const uint32_t frame = peek32(peek32(command + 8u));
@@ -138,9 +133,9 @@ namespace sc3::textures
         {
             g_rdram = rdram;
             const uint32_t ra = getRegU32(ctx, 31);
-            if (ra == kTextureCall || ra == kAnimatedTextureCall)
+            if (ra == addr::TextureCall || ra == addr::AnimatedTextureCall)
                 noteCall(ctx, ra);
-            func_0x10f808(rdram, ctx, runtime);
+            fn::GifPacketClose(rdram, ctx, runtime);
         }
     }
 
@@ -149,7 +144,7 @@ namespace sc3::textures
     void noteDepthLink(R5900Context *ctx)
     {
         const uint32_t ra = getRegU32(ctx, 31);
-        if (g_ready && (ra == kTextureCallOt || ra == kAnimatedTextureCallOt))
+        if (g_ready && (ra == addr::TextureCallOt || ra == addr::AnimatedTextureCallOt))
             noteCall(ctx, ra);
     }
 
@@ -241,7 +236,7 @@ namespace sc3::textures
             return;
         std::fprintf(stderr, "[sc3:textures] %s, %zu upload lists, %zu entries, %zu records\n", path, g_pack.lists(), g_pack.entries(), g_pack.records());
         g_ready = true;
-        runtime.registerFunction(kGifPacketClose, &gifPacketClose);
+        runtime.registerFunction(addr::GifPacketClose, &gifPacketClose);
     }
 
     void shutdown()

@@ -33,7 +33,7 @@ int main(int argc, char **argv)
     identity.title = "Soulcalibur III";
     identity.folder = "SoulCaliburIII_Recomp";
     identity.xdgFolder = "soulcalibur3_recomp";
-    identity.bootElf = "SLUS_212.16";
+    identity.bootElf = sc3::region::kBootElf;
     identity.dataFolder = "game";
     bozo::app::setIdentity(identity);
     bozo::app::startLogging();
@@ -41,7 +41,7 @@ int main(int argc, char **argv)
 
     bozo::host::FreeOptions opt;
     opt.profileIo = true;
-    opt.framePeriodCycles = sc3::kFramePeriodCycles;
+    opt.framePeriodCycles = sc3::clock::kNtscFieldCycles;
     opt.elf = BOZO_RUN_DEFAULT_ELF;
     sc3::useSymbolMap(opt, argv[0]);
     opt.realTime = true;

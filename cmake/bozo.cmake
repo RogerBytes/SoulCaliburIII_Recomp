@@ -1,7 +1,7 @@
 # SC3 on BozoEngine:
 #
-#   cmake -S . -B build/bozo -G Ninja -DSC3_ELF=<SLUS_212.16> [-DSC3_ISO=<the disc image>]
-#         [-DBOZO_ENGINE_DIR=<BozoEngine>] [-DSC3_SYMBOL_MAP=<sc3_symbols.txt>] [-DSC3_WINDOW=OFF]
+#   cmake -S . -B build/bozo -G Ninja -DSC3_ELF=<SLUS_212.16 or SCES_533.12> [-DSC3_ISO=<the disc image>]
+#         [-DBOZO_ENGINE_DIR=<BozoEngine>] [-DSC3_SYMBOL_MAP=<sc3_symbols.txt>] [-DSC3_WINDOW=OFF] [-DSC3_REGION=NTSC|PAL]
 #
 # Targets:
 # - sc3-irx-check: SC3's sound modules started natively with no game (SC3_NATIVE_SOUND, cmake/sc3_audio.cmake).
@@ -16,15 +16,21 @@
 # The generated code: bozo-recomp with the externals bozo-externals writes from the ELF (the names BozoEngine answers),
 # recomp/sc3_stubs.txt, SC3's override list (scripts/sc3_overrides_list.py, from bozo/port/*.cpp) and the symbol map
 # SC3_SYMBOL_MAP (default recomp/sc3_symbols.txt, once BOZO_ENGINE_DIR's engine reads symbol maps).
+#
+# SC3_REGION, from SC3_ELF's SHA-1 by default: NTSC (SLUS_212.16) or PAL (SCES_533.12). The port names the game's
+# addresses (bozo/port/sc3_addresses.txt, one column a disc; sc3_region.h); a PAL build takes recomp/pal/'s inputs.
 
 set(BOZO_ENGINE_DIR "" CACHE PATH "BozoEngine's source tree (default: the BozoEngine submodule)")
 if(NOT BOZO_ENGINE_DIR AND EXISTS "${CMAKE_SOURCE_DIR}/BozoEngine/CMakeLists.txt")
     set(BOZO_ENGINE_DIR "${CMAKE_SOURCE_DIR}/BozoEngine" CACHE PATH "BozoEngine's source tree (default: the BozoEngine submodule)" FORCE)
 endif()
-set(SC3_ELF "" CACHE FILEPATH "SC3's executable (SLUS_212.16), from the disc")
-if(NOT SC3_ELF AND EXISTS "${CMAKE_SOURCE_DIR}/game/SLUS_212.16")
-    set(SC3_ELF "${CMAKE_SOURCE_DIR}/game/SLUS_212.16" CACHE FILEPATH "SC3's executable (SLUS_212.16), from the disc" FORCE)
-endif()
+set(SC3_ELF "" CACHE FILEPATH "SC3's executable (SLUS_212.16 or SCES_533.12), from the disc")
+foreach(boot SLUS_212.16 SCES_533.12)
+    if(NOT SC3_ELF AND EXISTS "${CMAKE_SOURCE_DIR}/game/${boot}")
+        set(SC3_ELF "${CMAKE_SOURCE_DIR}/game/${boot}" CACHE FILEPATH "SC3's executable (SLUS_212.16 or SCES_533.12), from the disc" FORCE)
+    endif()
+endforeach()
+set(SC3_REGION "" CACHE STRING "The release SC3_ELF is: NTSC or PAL (empty: from its SHA-1)")
 set(SC3_ISO "" CACHE FILEPATH "SC3's disc image, the default of the programs' --iso")
 set(SC3_SYMBOL_MAP "" CACHE FILEPATH "Names of the stripped ELF's library functions (name 0xADDR lines), given to bozo-externals and bozo-recomp --symbols and to the free host")
 set(SC3_EXTERNALS "" CACHE FILEPATH "An externals list to generate with instead of bozo-externals' (bozo-calllog-tool externals: a pinned check needs the reference's stubs)")
@@ -36,12 +42,38 @@ if(NOT BOZO_ENGINE_DIR OR NOT EXISTS "${BOZO_ENGINE_DIR}/CMakeLists.txt")
     message(FATAL_ERROR "SC3: set BOZO_ENGINE_DIR to BozoEngine's source tree (or git submodule update --init BozoEngine)")
 endif()
 if(NOT SC3_ELF OR NOT EXISTS "${SC3_ELF}")
-    message(FATAL_ERROR "SC3: set SC3_ELF to the game's executable (SLUS_212.16)")
+    message(FATAL_ERROR "SC3: set SC3_ELF to the game's executable (SLUS_212.16 or SCES_533.12)")
+endif()
+set(sc3_region "${SC3_REGION}")
+if(NOT sc3_region)
+    file(SHA1 "${SC3_ELF}" sc3_elf_sha1)
+    if(sc3_elf_sha1 STREQUAL "8c79c1db3395e72ada118860433de6638ccf9401")
+        set(sc3_region PAL)
+    else()
+        set(sc3_region NTSC)
+    endif()
+endif()
+if(sc3_region STREQUAL "PAL")
+    set(sc3_recomp_dir "${CMAKE_SOURCE_DIR}/recomp/pal")
+    set(sc3_title "Soulcalibur III (Europe, Australia)")
+    set(sc3_boot SCES_533.12)
+    set(sc3_column pal)
+elseif(sc3_region STREQUAL "NTSC")
+    set(sc3_recomp_dir "${CMAKE_SOURCE_DIR}/recomp")
+    set(sc3_title "Soulcalibur III (USA)")
+    set(sc3_boot SLUS_212.16)
+    set(sc3_column ntsc)
+else()
+    message(FATAL_ERROR "SC3: SC3_REGION is NTSC or PAL, not ${sc3_region}")
+endif()
+message(STATUS "SC3: ${sc3_title}, ${sc3_boot}")
+if(SC3_SYMBOL_MAP STREQUAL "${CMAKE_SOURCE_DIR}/recomp/sc3_symbols.txt" OR SC3_SYMBOL_MAP STREQUAL "${CMAKE_SOURCE_DIR}/recomp/pal/sc3_symbols.txt")
+    set(SC3_SYMBOL_MAP "" CACHE FILEPATH "" FORCE)
 endif()
 if(NOT SC3_SYMBOL_MAP)
     file(STRINGS "${BOZO_ENGINE_DIR}/tools/externals/main.cpp" engine_reads_symbol_maps REGEX "\"--symbols\"")
     if(engine_reads_symbol_maps)
-        set(SC3_SYMBOL_MAP "${CMAKE_SOURCE_DIR}/recomp/sc3_symbols.txt" CACHE FILEPATH "Names of the stripped ELF's library functions (name 0xADDR lines), given to bozo-externals and bozo-recomp --symbols and to the free host" FORCE)
+        set(SC3_SYMBOL_MAP "${sc3_recomp_dir}/sc3_symbols.txt" CACHE FILEPATH "Names of the stripped ELF's library functions (name 0xADDR lines), given to bozo-externals and bozo-recomp --symbols and to the free host" FORCE)
     endif()
 endif()
 if(SC3_SYMBOL_MAP AND NOT EXISTS "${SC3_SYMBOL_MAP}")
@@ -72,6 +104,7 @@ add_subdirectory("${BOZO_ENGINE_DIR}" bozo)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 set(gen_dir "${CMAKE_BINARY_DIR}/sc3_gen")
+set(region_dir "${CMAKE_BINARY_DIR}/sc3_region")
 set(overrides_list "${gen_dir}/sc3_overrides.txt")
 set(externals "${gen_dir}/sc3_externals.txt")
 set(port_dir "${CMAKE_SOURCE_DIR}/bozo/port")
@@ -80,9 +113,24 @@ file(GLOB SC3_PORT_SOURCES CONFIGURE_DEPENDS "${port_dir}/*.cpp")
 add_custom_command(
     OUTPUT ${overrides_list}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${gen_dir}
-    COMMAND Python3::Interpreter "${CMAKE_SOURCE_DIR}/scripts/sc3_overrides_list.py" "${port_dir}" ${overrides_list}
-    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_overrides_list.py" ${SC3_PORT_SOURCES}
+    COMMAND Python3::Interpreter "${CMAKE_SOURCE_DIR}/scripts/sc3_overrides_list.py" "${port_dir}" ${overrides_list} --column ${sc3_column}
+    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_overrides_list.py" "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" ${SC3_PORT_SOURCES} "${port_dir}/sc3_addresses.txt"
     COMMENT "Listing SC3's overrides")
+set(sc3_header_symbols)
+if(SC3_SYMBOL_MAP)
+    set(sc3_header_symbols --symbols "${SC3_SYMBOL_MAP}")
+endif()
+file(GLOB_RECURSE sc3_named_sources CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/bozo/*.cpp" "${CMAKE_SOURCE_DIR}/bozo/*.h")
+add_custom_command(
+    OUTPUT ${region_dir}/sc3_region.h
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${region_dir}
+    COMMAND Python3::Interpreter "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" header ${region_dir}/sc3_region.h
+            --title "${sc3_title}" --elf ${sc3_boot} --table "${port_dir}/sc3_addresses.txt" --column ${sc3_column}
+            ${sc3_header_symbols} --sources "${CMAKE_SOURCE_DIR}/bozo"
+    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" ${sc3_named_sources} "${port_dir}/sc3_addresses.txt" ${SC3_SYMBOL_MAP}
+    COMMENT "SC3's addresses in ${sc3_boot}"
+    VERBATIM)
+add_custom_target(sc3_region DEPENDS ${region_dir}/sc3_region.h)
 set(externals_args --overrides ${overrides_list} --stubs "${CMAKE_SOURCE_DIR}/recomp/sc3_stubs.txt")
 set(externals_depends ${overrides_list} "${CMAKE_SOURCE_DIR}/recomp/sc3_stubs.txt")
 if(SC3_SYMBOL_MAP)
@@ -113,7 +161,7 @@ foreach(i RANGE ${last})
     endif()
     list(APPEND gen_files ${gen_dir}/sc3_${n}.cpp)
 endforeach()
-set(sc3_patches "${CMAKE_SOURCE_DIR}/recomp/sc3_patches.txt")
+set(sc3_patches "${sc3_recomp_dir}/sc3_patches.txt")
 set(recomp_args --prefix sc3 --files ${SC3_GEN_FILES} --no-comments --externals ${externals} --patches ${sc3_patches})
 set(recomp_depends ${sc3_recomp_tool} ${externals} ${SC3_ELF} ${sc3_patches})
 if(SC3_SYMBOL_MAP)
@@ -136,10 +184,10 @@ target_include_directories(sc3_generated PUBLIC ${gen_dir})
 target_compile_options(sc3_generated PRIVATE ${SC3_GEN_OPT} -w)
 
 # An object library: BOZO_PORT's registration must be linked whatever references it.
-add_library(sc3_port OBJECT ${SC3_PORT_SOURCES})
-target_include_directories(sc3_port PUBLIC "${port_dir}" ${gen_dir})
+add_library(sc3_port OBJECT ${SC3_PORT_SOURCES} ${region_dir}/sc3_region.h)
+target_include_directories(sc3_port PUBLIC "${port_dir}" ${gen_dir} ${region_dir})
 target_link_libraries(sc3_port PUBLIC bozo_port bozo_render bozo_libs bozo_runtime_core)
-add_dependencies(sc3_port sc3_generated)
+add_dependencies(sc3_port sc3_generated sc3_region)
 if(BOZO_FFMPEG_ROOT)
     foreach(lib avformat swresample swscale)
         find_library(SC3_${lib} ${lib} PATHS ${BOZO_FFMPEG_ROOT}/lib NO_DEFAULT_PATH)
@@ -177,14 +225,14 @@ function(sc3_static_link target)
     endif()
 endfunction()
 
-add_executable(sc3-headless bozo/sc3_headless.cpp)
+add_executable(sc3-headless bozo/sc3_headless.cpp ${region_dir}/sc3_region.h)
 target_link_libraries(sc3-headless PRIVATE sc3_port sc3_generated bozo_host)
 target_compile_definitions(sc3-headless PRIVATE ${sc3_main_defines})
 sc3_static_link(sc3-headless)
 
 # bozo-run's library names the generated tables tmb_*: they are SC3's here.
 if(TARGET bozo_run)
-    add_executable(sc3-check bozo/sc3_check.cpp)
+    add_executable(sc3-check bozo/sc3_check.cpp ${region_dir}/sc3_region.h)
     target_link_libraries(sc3-check PRIVATE sc3_port sc3_generated bozo_run)
     target_compile_definitions(sc3-check PRIVATE ${sc3_main_defines})
     foreach(table function_table function_count resume_table resume_count external_table external_count)
@@ -194,7 +242,7 @@ if(TARGET bozo_run)
 endif()
 
 if(SC3_WINDOW)
-    add_executable(sc3 bozo/sc3_window.cpp)
+    add_executable(sc3 bozo/sc3_window.cpp ${region_dir}/sc3_region.h)
     target_link_libraries(sc3 PRIVATE sc3_port sc3_generated bozo_host bozo_app)
     target_compile_definitions(sc3 PRIVATE ${sc3_main_defines})
     sc3_static_link(sc3)
@@ -212,24 +260,28 @@ if(NOT SC3_DISC_DIR)
     get_filename_component(SC3_DISC_DIR "${SC3_ELF}" DIRECTORY)
 endif()
 set(pack_dir "${CMAKE_BINARY_DIR}/packs")
+file(SHA1 "${SC3_ELF}" sc3_pack_elf_sha1)
+file(CONFIGURE OUTPUT "${CMAKE_BINARY_DIR}/sc3_disc.txt" CONTENT "${sc3_boot} ${sc3_pack_elf_sha1} ${SC3_DISC_DIR}\n")
+set(sc3_pack_disc "${CMAKE_BINARY_DIR}/sc3_disc.txt")
 set(pack_env ${CMAKE_COMMAND} -E env "BOZO_ENGINE_TOOLS=${BOZO_ENGINE_DIR}/tools")
 add_custom_command(
     OUTPUT ${pack_dir}/sc3_textures.pack ${pack_dir}/sc3_textures.keys
     COMMAND ${CMAKE_COMMAND} -E make_directory ${pack_dir}
     COMMAND ${pack_env} ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/scripts/sc3_texture_pack.py" "${SC3_DISC_DIR}" ${pack_dir}/sc3_textures.pack
-    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_texture_pack.py"
+    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_texture_pack.py" ${sc3_pack_disc}
     COMMENT "Building the texture pack from the disc")
 add_custom_command(
     OUTPUT ${pack_dir}/sc3_meshes.pack
     COMMAND ${CMAKE_COMMAND} -E make_directory ${pack_dir}
     COMMAND ${pack_env} ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/scripts/sc3_mesh_pack.py" "${SC3_DISC_DIR}" ${pack_dir}/sc3_meshes.pack
-    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_mesh_pack.py"
+    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_mesh_pack.py" ${sc3_pack_disc}
     COMMENT "Building the mesh pack from the disc")
 add_custom_command(
     OUTPUT ${pack_dir}/sc3_2d.pack
     COMMAND ${CMAKE_COMMAND} -E make_directory ${pack_dir}
-    COMMAND ${pack_env} ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/scripts/sc3_2d_pack.py" "${SC3_DISC_DIR}" ${pack_dir}/sc3_2d.pack
+    COMMAND ${pack_env} ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/scripts/sc3_2d_pack.py" "${SC3_DISC_DIR}" ${pack_dir}/sc3_2d.pack --boot ${sc3_boot}
     DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_2d_pack.py" "${CMAKE_SOURCE_DIR}/scripts/sc3_texture_pack.py" "${CMAKE_SOURCE_DIR}/scripts/sc3_mesh_pack.py"
+            "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" "${CMAKE_SOURCE_DIR}/bozo/port/sc3_addresses.txt" ${sc3_pack_disc}
     COMMENT "Building the 2D pack from the disc")
 add_custom_target(sc3_packs DEPENDS ${pack_dir}/sc3_textures.pack ${pack_dir}/sc3_meshes.pack ${pack_dir}/sc3_2d.pack)
 

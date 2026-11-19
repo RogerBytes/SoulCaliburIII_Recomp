@@ -4,6 +4,9 @@
     python scripts/sc3_region_map.py translate <map> <address>...
     python scripts/sc3_region_map.py symbols <map> <ntsc "name 0xADDR" list> <out>
     python scripts/sc3_region_map.py patches <map> <ntsc patches> <SLUS_212.16> <SCES_533.12> <reviewed> <out>
+    python scripts/sc3_region_map.py addresses <bozo/port/sc3_addresses.txt> <map> [--write]
+    python scripts/sc3_region_map.py header <sc3_region.h> --title <title> --elf <boot ELF> --table <sc3_addresses.txt>
+                                     [--column ntsc|pal] [--symbols <symbol map>] [--sources <folder>...]
 
 build lines the two executables up and writes the ranges that moved as a block:
   code     function by function (a jal target to the next): bodies equal once every relocated field is masked (jump
@@ -18,10 +21,14 @@ build lines the two executables up and writes the ranges that moved as a block:
 
 A map line is `<kind> <ntsc begin> <ntsc end> <offset>`, the end excluded. An address in no range has no translation.
 symbols and patches carry SC3's recomp inputs over with the map; patches takes the reviewed lines (`<ntsc address>
-<address> <expected> <replacement>`) in place of what it cannot carry itself.
+<address> <expected> <replacement>`) in place of what it cannot carry itself. addresses fills or checks the PAL column of
+the port's address table from the map; a row inside a function that changed is read by hand and marked reviewed.
+header writes the build's sc3_region.h from that table's column.
 """
+import argparse
 import bisect
 import difflib
+import re
 import struct
 import subprocess
 import sys
@@ -378,6 +385,143 @@ class Map:
         return next(((lo, hi) for lo, hi in self.changed if lo <= address < hi), None)
 
 
+class Addresses:
+    """bozo/port/sc3_addresses.txt, the game's addresses the port names: a row a name (a `name[]` row per element of an
+    array), its address in SLUS_212.16, in SCES_533.12, `reviewed` when that one was read by hand, then `# note`."""
+
+    COLUMNS = ('ntsc', 'pal')
+
+    def __init__(self, path):
+        self.path = Path(path)
+        self.lines = self.path.read_text(encoding='utf-8').splitlines()
+        self.rows = []
+        for n, line in enumerate(self.lines):
+            code, _, note = line.partition('#')
+            parts = code.split()
+            if not parts:
+                continue
+            values = [int(v, 16) if v != '-' else None for v in parts[1:3]]
+            values += [None] * (2 - len(values))
+            self.rows.append({'line': n, 'name': parts[0], 'ntsc': values[0], 'pal': values[1],
+                              'reviewed': 'reviewed' in parts[3:], 'note': note.strip()})
+
+    def values(self, column):
+        """name -> address, or the list of an array's, in that column."""
+        out = {}
+        for r in self.rows:
+            if r['name'].endswith('[]'):
+                out.setdefault(r['name'][:-2], []).append(r[column])
+            else:
+                out[r['name']] = r[column]
+        return out
+
+    def write(self):
+        width = max(len(r['name']) for r in self.rows)
+        for r in self.rows:
+            text = '%-*s 0x%08X %s%s' % (width, r['name'], r['ntsc'], '0x%08X' % r['pal'] if r['pal'] is not None else '-',
+                                       ' reviewed' if r['reviewed'] else '')
+            self.lines[r['line']] = text + ('  # ' + r['note'] if r['note'] else '')
+        self.path.write_text('\n'.join(self.lines) + '\n', encoding='utf-8')
+
+
+def addresses(argv):
+    """The table's SCES_533.12 column from the map: checked (the default) or written (--write). A row inside a function
+    that changed has to be reviewed: its address is read by hand and kept."""
+    ap = argparse.ArgumentParser(prog='sc3_region_map.py addresses')
+    ap.add_argument('table')
+    ap.add_argument('map')
+    ap.add_argument('--write', action='store_true')
+    args = ap.parse_args(argv)
+    table, m = Addresses(args.table), Map(args.map)
+    errors, stale = [], []
+    for r in table.rows:
+        if r['reviewed']:
+            if r['pal'] is None:
+                errors.append('%s: reviewed with no address' % r['name'])
+            continue
+        changed = m.in_changed(r['ntsc'])
+        here = m.translate(r['ntsc'])
+        if changed:
+            errors.append('%s %#x: inside %#x-%#x, which changed: read it and mark the row reviewed'
+                          % ((r['name'], r['ntsc']) + changed))
+        elif here is None:
+            errors.append('%s %#x: no place in the map' % (r['name'], r['ntsc']))
+        elif here != r['pal']:
+            stale.append('%s %#x: %s in the table, %#x by the map'
+                         % (r['name'], r['ntsc'], '-' if r['pal'] is None else '%#x' % r['pal'], here))
+            r['pal'] = here
+    for line in errors + ([] if args.write else stale):
+        print(line)
+    if args.write and not errors:
+        table.write()
+    return 1 if errors or (stale and not args.write) else 0
+
+
+FN = re.compile(r'\bfn::(\w+)')
+
+
+def serial(elf):
+    return elf.replace('_', '-').replace('.', '')
+
+
+def header(argv):
+    """sc3_region.h: the build's release, the table's column for it as sc3::addr, and as sc3::fn the generated function
+    at each address the port calls (fn::Name in its sources)."""
+    ap = argparse.ArgumentParser(prog='sc3_region_map.py header')
+    ap.add_argument('out')
+    ap.add_argument('--title', required=True)
+    ap.add_argument('--elf', required=True)
+    ap.add_argument('--table', required=True)
+    ap.add_argument('--column', choices=Addresses.COLUMNS, default='ntsc')
+    ap.add_argument('--symbols', help='the symbol map bozo-recomp names the functions with')
+    ap.add_argument('--sources', nargs='*', default=[])
+    args = ap.parse_args(argv)
+    values = Addresses(args.table).values(args.column)
+    names = {}
+    if args.symbols:
+        for line in Path(args.symbols).read_text(encoding='utf-8').splitlines():
+            parts = line.split()
+            if len(parts) >= 2 and not line.startswith('#'):
+                names[int(parts[1], 16)] = parts[0]
+    called, errors = set(), []
+    for folder in args.sources:
+        for f in sorted(Path(folder).rglob('*')):
+            if f.suffix in ('.cpp', '.h'):
+                called |= set(FN.findall(f.read_text(encoding='utf-8')))
+    missing = sorted(n for n, v in values.items() if v is None or (isinstance(v, list) and None in v))
+    for name in sorted(called):
+        if name not in values or isinstance(values[name], list):
+            errors.append('fn::%s: no such address in %s' % (name, args.table))
+    if missing:
+        errors.append('%s has no %s address for %s' % (args.table, args.column, ', '.join(missing)))
+    if errors:
+        print('\n'.join(errors))
+        return 1
+    rows = []
+    for name, v in values.items():
+        if isinstance(v, list):
+            rows.append('    inline constexpr uint32_t %s[] = {%s};\n' % (name, ', '.join('0x%08Xu' % a for a in v)))
+        else:
+            rows.append('    inline constexpr uint32_t %s = 0x%08Xu;\n' % (name, v))
+    functions = ''.join('    inline constexpr GuestFunction %s = &::%s_0x%x;\n' % (name, names.get(values[name], 'func'), values[name])
+                        for name in sorted(called))
+    text = ('// %s for %s: scripts/sc3_region_map.py header from %s. Do not edit.\n'
+            '#pragma once\n\n#include "sc3_functions.h"\n\n#include <cstdint>\n\n'
+            'namespace sc3::region\n{\n'
+            '    inline constexpr const char *kTitle = "%s";\n'
+            '    inline constexpr const char *kBootElf = "%s";\n'
+            '    inline constexpr const char *kSerial = "%s";\n}\n\n'
+            'namespace sc3::addr\n{\n%s}\n\n'
+            'namespace sc3::fn\n{\n'
+            '    using GuestFunction = void (*)(uint8_t *, R5900Context *, Runtime *);\n%s}\n'
+            % (Path(args.out).name, args.elf, Path(args.table).name, args.title, args.elf, serial(args.elf), ''.join(rows),
+               functions))
+    out = Path(args.out)
+    if not out.exists() or out.read_text(encoding='utf-8') != text:
+        out.write_text(text, encoding='utf-8', newline='\n')
+    return 0
+
+
 def translate(path, addresses):
     m = Map(path)
     for text in addresses:
@@ -470,6 +614,10 @@ def main(argv):
         build(*argv[1:4])
     elif len(argv) >= 2 and argv[0] == 'translate':
         translate(argv[1], argv[2:])
+    elif len(argv) >= 1 and argv[0] == 'header':
+        return header(argv[1:])
+    elif len(argv) >= 1 and argv[0] == 'addresses':
+        return addresses(argv[1:])
     elif len(argv) >= 4 and argv[0] == 'symbols':
         return symbols(*argv[1:4])
     elif len(argv) >= 7 and argv[0] == 'patches':

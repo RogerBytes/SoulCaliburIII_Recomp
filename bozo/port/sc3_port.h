@@ -1,5 +1,6 @@
 // SC3's port on BozoEngine: what every port file includes. The context helpers (bozo/context.h), the generated
-// functions by name (sc3_functions.h, made by bozo-recomp from SLUS_212.16 with SC3's externals) and the port API
+// functions by name (sc3_functions.h, made by bozo-recomp from the disc's ELF with SC3's externals), the game's
+// addresses for that disc (sc3_region.h: sc3::addr and sc3::fn, from sc3_addresses.txt) and the port API
 // (bozo/port.h). Each subsystem registers its overrides from its own install(), called by applySc3 (sc3_port.cpp).
 #pragma once
 
@@ -7,6 +8,7 @@
 #include "bozo/port.h"
 #include "bozo/recomp.h"
 #include "sc3_functions.h"
+#include "sc3_region.h"
 
 #include <string>
 #include <vector>
@@ -31,6 +33,11 @@ namespace sc3
         // The horizontal blanks so far, 16 bits; reading the same count again charges a line (a poll takes time).
         uint32_t lines(PS2Runtime *runtime, R5900Context *ctx);
         uint32_t linesSinceVblank(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
+        // A field in EE cycles and in seconds, at the rate the game set the display to (PAL 50 Hz, NTSC and PAL60
+        // 59.94 Hz).
+        constexpr uint64_t kNtscFieldCycles = bozo::port::kEeClockHz * 1001u / 60000u;
+        uint64_t fieldCycles(PS2Runtime *runtime);
+        double fieldSeconds(PS2Runtime *runtime);
     }
     namespace packet
     {
@@ -69,6 +76,9 @@ namespace sc3
     }
     namespace audio { void install(Registry &runtime); }
     void statsLine(const char *format, ...) __attribute__((format(printf, 1, 2)));
+    // The console language the game reads from the OSD settings: SC3_LANGUAGE (en, fr, de, es, it; the PAL disc has all
+    // five), English when unset. Set at _InitSys, before the game reads it.
+    void applyLanguage(PS2Runtime *runtime);
     // After the game's last frame, while the renderer still exists: players stopped, every texture and draw the port keeps released.
     void shutdown();
     void state(bozo::state::Archive &a, Runtime *runtime);

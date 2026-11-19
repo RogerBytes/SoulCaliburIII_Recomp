@@ -39,14 +39,6 @@ namespace sc3::movies
 {
     namespace
     {
-        constexpr uint32_t kMwPlyCreate = 0x003AA698u;
-        constexpr uint32_t kMwPlyDestroy = 0x003AAC38u;
-        constexpr uint32_t kMwPlyPause = 0x003AD8F0u;
-        constexpr uint32_t kMwPlyIsPause = 0x003AD300u;
-        // Set on a decoder the game never gets: its volume, an output setting, a memory area, a frame's information.
-        constexpr uint32_t kMwPlyDecoderSettings[] = {0x003AEF20u, 0x003B0178u, 0x003A8A98u, 0x003B3AD0u};
-
-        constexpr uint32_t kMwPlySlots = 0x0054D6C4u;
         constexpr uint32_t kMwPlySlotCount = 8u;
         constexpr uint32_t kMwPlySlotSize = 0x304u;
         constexpr uint32_t kMwPlyParameters = 0x08u;
@@ -54,19 +46,8 @@ namespace sc3::movies
         constexpr uint32_t kMwPlyPaused = 0x40u;
         constexpr uint32_t kMwPlyLastEntry = 0x2FCu;
         constexpr uint32_t kFrameObjectSize = 0x90u;
-        constexpr uint32_t kMwPlyStartAfs = 0x003ADA20u;
-        constexpr uint32_t kMwPlyStartAfsLp = 0x003B1698u;
-        constexpr uint32_t kMwPlyGetCurFrm = 0x003AB630u;
-        constexpr uint32_t kMwPlyRelCurFrm = 0x003ABF50u;
-        constexpr uint32_t kMwPlyIsNextFrmReady = 0x003AC008u;
-        constexpr uint32_t kMwPlyStop = 0x003AD870u;
-        constexpr uint32_t kMwPlyStarts[] = {0x003AD4B0u, 0x003AD5E8u, 0x003AD6E8u, 0x003ADA20u, 0x003ADBD0u,
-                                             0x003B1328u, 0x003B1428u, 0x003B1698u, 0x003B17E0u, 0x003B2DF0u};
-        constexpr uint32_t kMwPlyGetStat = 0x003AE9F8u;
         constexpr int32_t kMwPlyStatPlayEnd = 3;
-        constexpr uint32_t kMoviePlayStat = 0x003AE988u;
         constexpr int32_t kMoviePlayStatFinished = 4;
-        constexpr uint32_t kMovieTaskEnd = 0x00218600u;
         constexpr uint32_t kMovieStatePointer = 0x70000030u;
 
         uint32_t readWord(PS2Runtime *runtime, uint32_t address)
@@ -84,7 +65,7 @@ namespace sc3::movies
             if (movieState && readWord(runtime, movieState + 8u) == getRegU32(ctx, 4))
                 if (uint8_t *p = runtime->memory.hostPointer(movieState + 8u, 4))
                     std::memset(p, 0, 4);
-            func_0x218600(rdram, ctx, runtime);
+            fn::MovieTaskEnd(rdram, ctx, runtime);
         }
 
 #ifdef SC3_HAVE_FFMPEG
@@ -100,7 +81,6 @@ namespace sc3::movies
         constexpr uint32_t kFullScreenWidth = 512u;
         constexpr uint64_t kBackdropKey = 0x5C3B4C4Bu;
         constexpr double kPictureTime = 1001.0 / 30000.0;
-        constexpr double kGameFrameTime = 1001.0 / 60000.0;
         constexpr uint32_t kSector = 2048u;
 
         struct Picture
@@ -156,9 +136,9 @@ namespace sc3::movies
             }
 
             // At the frame ends: the clock moves on, the picture of that time is the current one.
-            void update()
+            void update(double field)
             {
-                const double now = static_cast<double>(++m_ticks) * kGameFrameTime;
+                const double now = static_cast<double>(++m_ticks) * field;
                 std::unique_lock<std::mutex> lock(m_mutex);
                 if (!m_active)
                     return;
@@ -499,11 +479,10 @@ namespace sc3::movies
 
         // What the soundtracks owe the stream by the clock, plus a lead that outlasts a slow frame on the host's clock and the
         // mixer's block in a deterministic run. Silence is not pushed: the stream adds nothing when it has none.
-        void pushAudio(PS2Runtime *runtime, bool realTime)
+        void pushAudio(PS2Runtime *runtime, bool realTime, double field)
         {
-            ++g_audioTicks;
-            const double now = static_cast<double>(g_audioTicks) * kGameFrameTime;
-            const uint64_t target = static_cast<uint64_t>(now * kRate) + (realTime ? kRate / 5u : kRate / 60u);
+            const double now = static_cast<double>(++g_audioTicks) * field;
+            const uint64_t target = static_cast<uint64_t>(now * kRate) + (realTime ? kRate / 5u : std::max<uint64_t>(kRate / 60u, static_cast<uint64_t>(field * kRate)));
             if (target <= g_audioPushed)
                 return;
             const size_t count = static_cast<size_t>(std::min<uint64_t>(target - g_audioPushed, kRate / 2u));
@@ -640,7 +619,7 @@ namespace sc3::movies
             uint32_t created = 0u;
             for (uint32_t i = 0u; parameters != 0u && i < kMwPlySlotCount && created == 0u; ++i)
             {
-                const uint32_t handle = kMwPlySlots + i * kMwPlySlotSize;
+                const uint32_t handle = addr::MwPlySlots + i * kMwPlySlotSize;
                 uint32_t used = 0u;
                 std::memcpy(&used, rdram + handle, 4);
                 if (used == 1u)
@@ -691,9 +670,10 @@ namespace sc3::movies
         }
         g_runtime = runtime;
         const bool realTime = bozo::port::host(runtime).realTime();
+        const double field = clock::fieldSeconds(runtime);
         for (const auto &entry : g_players)
-            entry.second->update();
-        pushAudio(runtime, realTime);
+            entry.second->update(field);
+        pushAudio(runtime, realTime, field);
 #else
         (void)runtime;
 #endif
@@ -740,30 +720,30 @@ namespace sc3::movies
 
     void install(Registry &runtime)
     {
-        for (uint32_t address : kMwPlyStarts)
+        for (uint32_t address : addr::MwPlyStarts)
             runtime.registerFunction(address, &start);
-        runtime.registerFunction(kMwPlyGetStat, &getStat);
-        runtime.registerFunction(kMoviePlayStat, &playStat);
-        runtime.registerFunction(kMovieTaskEnd, &taskEndReleasesJob);
-        runtime.registerFunction(kMwPlyCreate, &create);
-        runtime.registerFunction(kMwPlyDestroy, &destroy);
-        runtime.registerFunction(kMwPlyPause, &pause);
-        runtime.registerFunction(kMwPlyIsPause, &isPause);
-        for (uint32_t setting : kMwPlyDecoderSettings)
+        runtime.registerFunction(addr::MwPlyGetStat, &getStat);
+        runtime.registerFunction(addr::MoviePlayStat, &playStat);
+        runtime.registerFunction(addr::MovieTaskEnd, &taskEndReleasesJob);
+        runtime.registerFunction(addr::MwPlyCreate, &create);
+        runtime.registerFunction(addr::MwPlyDestroy, &destroy);
+        runtime.registerFunction(addr::MwPlyPause, &pause);
+        runtime.registerFunction(addr::MwPlyIsPause, &isPause);
+        for (uint32_t setting : addr::MwPlyDecoderSettings)
             runtime.registerFunction(setting, &answered);
-        runtime.registerFunction(kMwPlyGetCurFrm, &getCurFrm);
-        runtime.registerFunction(kMwPlyRelCurFrm, &answered);
-        runtime.registerFunction(kMwPlyIsNextFrmReady, &isNextFrmReady);
+        runtime.registerFunction(addr::MwPlyGetCurFrm, &getCurFrm);
+        runtime.registerFunction(addr::MwPlyRelCurFrm, &answered);
+        runtime.registerFunction(addr::MwPlyIsNextFrmReady, &isNextFrmReady);
 #ifdef SC3_HAVE_FFMPEG
         twoD::setMoviePictures([](uint32_t handle, uint32_t known, std::vector<uint32_t> &rgba, uint32_t &width, uint32_t &height, uint32_t &number)
                                { return g_runtime && picture(g_runtime, handle, known, rgba, width, height, number); });
-        runtime.registerFunction(kMwPlyStartAfs, &startAfs);
-        runtime.registerFunction(kMwPlyStartAfsLp, &startAfsLp);
-        runtime.registerFunction(kMwPlyStop, &stopCall);
+        runtime.registerFunction(addr::MwPlyStartAfs, &startAfs);
+        runtime.registerFunction(addr::MwPlyStartAfsLp, &startAfsLp);
+        runtime.registerFunction(addr::MwPlyStop, &stopCall);
 #else
-        runtime.registerFunction(kMwPlyStartAfs, &start);
-        runtime.registerFunction(kMwPlyStartAfsLp, &start);
-        runtime.registerFunction(kMwPlyStop, &start);
+        runtime.registerFunction(addr::MwPlyStartAfs, &start);
+        runtime.registerFunction(addr::MwPlyStartAfsLp, &start);
+        runtime.registerFunction(addr::MwPlyStop, &start);
 #endif
     }
 }

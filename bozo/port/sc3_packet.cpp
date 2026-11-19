@@ -9,14 +9,6 @@ namespace sc3::packet
 {
     namespace
     {
-        constexpr uint32_t kBegin = 0x0010F4B8u;
-        constexpr uint32_t kCloseAtEnd = 0x0010DB88u;
-        constexpr uint32_t kCloseDepth = 0x0010D9A0u;
-        constexpr uint32_t kCloseFixed = 0x0010DC90u;
-        constexpr uint32_t kCloseLayerEnd = 0x0010E1F8u;
-        constexpr uint32_t kCriFromScratchpad = 0x003AE058u;
-        constexpr uint32_t kCriToScratchpad = 0x003AE130u;
-
         constexpr uint32_t kScratchpad = 0x70000000u;
         constexpr uint32_t kWriteAt = kScratchpad + 0x00u;
         constexpr uint32_t kHalf = kScratchpad + 0x04u;
@@ -27,16 +19,12 @@ namespace sc3::packet
         constexpr uint32_t kFixedSize = kScratchpad + 0x1Cu;
         constexpr uint32_t kMaxHalfSize = 0x1FC0u;
 
-        constexpr uint32_t kRenderer = 0x005BE700u;
-        constexpr uint32_t kOff = kRenderer + 0x00u;
-        constexpr uint32_t kChainQuadwords = kRenderer + 0x2Cu;
-        constexpr uint32_t kChainAt = kRenderer + 0x30u;
-        constexpr uint32_t kOtScale = kRenderer + 0x34u;
-        constexpr uint32_t kLayerBuckets = kRenderer + 0x50u;
-        constexpr uint32_t kLayerLast = kRenderer + 0x64u;
-
-        constexpr uint32_t kBucketMask = 0x00467488u;
-        constexpr uint32_t kBucketMaskBase = 0x00467490u;
+        constexpr uint32_t kOff = addr::Renderer + 0x00u;
+        constexpr uint32_t kChainQuadwords = addr::Renderer + 0x2Cu;
+        constexpr uint32_t kChainAt = addr::Renderer + 0x30u;
+        constexpr uint32_t kOtScale = addr::Renderer + 0x34u;
+        constexpr uint32_t kLayerBuckets = addr::Renderer + 0x50u;
+        constexpr uint32_t kLayerLast = addr::Renderer + 0x64u;
 
         constexpr uint32_t kRefTag = 0x20000000u;
         constexpr uint32_t kOtBuckets = 0x2000u;
@@ -65,9 +53,9 @@ namespace sc3::packet
 
         void markBucket(const Guest &g, uint32_t bucket)
         {
-            const uint64_t mask = bozo::load<uint64_t>(g.rdram, g.ctx, g.rt, kBucketMask);
-            const uint32_t group = (g.lw(kBucketMaskBase) + bucket) >> 7;
-            bozo::store<uint64_t>(g.rdram, g.ctx, g.rt, kBucketMask, mask | (uint64_t{1} << (group & 63u)));
+            const uint64_t mask = bozo::load<uint64_t>(g.rdram, g.ctx, g.rt, addr::BucketMask);
+            const uint32_t group = (g.lw(addr::BucketMaskBase) + bucket) >> 7;
+            bozo::store<uint64_t>(g.rdram, g.ctx, g.rt, addr::BucketMask, mask | (uint64_t{1} << (group & 63u)));
         }
 
         void flipHalf(const Guest &g)
@@ -213,12 +201,12 @@ namespace sc3::packet
 
     void install(Registry &runtime)
     {
-        runtime.registerFunction(kBegin, &begin);
-        runtime.registerFunction(kCloseAtEnd, &closeAtEnd);
-        runtime.registerFunction(kCloseDepth, &closeDepth);
-        runtime.registerFunction(kCloseFixed, &closeFixed);
-        runtime.registerFunction(kCloseLayerEnd, &closeLayerEnd);
-        runtime.registerFunction(kCriFromScratchpad, &criFromScratchpad);
-        runtime.registerFunction(kCriToScratchpad, &criToScratchpad);
+        runtime.registerFunction(addr::Begin, &begin);
+        runtime.registerFunction(addr::CloseAtEnd, &closeAtEnd);
+        runtime.registerFunction(addr::CloseDepth, &closeDepth);
+        runtime.registerFunction(addr::CloseFixed, &closeFixed);
+        runtime.registerFunction(addr::CloseLayerEnd, &closeLayerEnd);
+        runtime.registerFunction(addr::CriFromScratchpad, &criFromScratchpad);
+        runtime.registerFunction(addr::CriToScratchpad, &criToScratchpad);
     }
 }

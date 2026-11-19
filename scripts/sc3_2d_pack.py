@@ -21,8 +21,8 @@ An indexed page's other colours: the game may draw it with another CLUT the file
 text renderer's colours are the font's 16 CLUTs); each CLUT block the file's lists write besides the page's own gets
 a CT32 palette record of the page's size, named in the block as register 0x103 = CBP << 32 | record.
 
-Texture files inside the game's ELF (SLUS_212.16 in the disc dir: the font at 0x4763B0, the menu icons at 0x4AF170 and
-nine more) are converted as well, named elf/<address>, as the game has them before 0x118E18 relocates their pointers,
+Texture files inside the game's ELF (SLUS_212.16 or SCES_533.12 in the disc dir: the font, the menu icons and nine more,
+bozo/port/sc3_addresses.txt's ElfTextures in that disc's column) are converted as well, named elf/<address>, as the game has them before 0x118E18 relocates their pointers,
 each up to the end of its tables and of the data its upload lists reach (at most the next one's start).
 
 Beside it, <out>.leaves: one line per pack file, its name, the leaf's byte offset in ROOT.OLK and its size (hex).
@@ -52,8 +52,8 @@ TEXELS_REG = 0x101
 PALETTE_REG = 0x102
 CLUT_REG = 0x103
 NO_RECORD = 0xFFFFFFFF
-ELF_NAME = 'SLUS_212.16'
-ELF_FILES = [0x473E60, 0x4742D0, 0x474630, 0x4749E0, 0x474DF0, 0x475200, 0x475610, 0x475970, 0x475DE0, 0x4763B0, 0x4AF170]
+ELF_COLUMNS = {'SLUS_212.16': 'ntsc', 'SCES_533.12': 'pal'}
+ADDRESSES = os.path.join(HERE, '..', 'bozo', 'port', 'sc3_addresses.txt')
 
 
 def clut_uploads(data):
@@ -187,7 +187,16 @@ def elf_image(path, address, size, partial=False):
     raise ValueError('%s: %#x + %#x not in a loaded segment' % (path, address, size))
 
 
-def elf_file_size(path, address):
+def elf_files(disc, boot=None):
+    """The disc's ELF (boot, else the one in the disc dir) and its texture files' addresses, or (None, [])."""
+    for name, column in ELF_COLUMNS.items():
+        if (boot is None or name == boot) and os.path.exists(os.path.join(disc, name)):
+            import sc3_region_map
+            return os.path.join(disc, name), sc3_region_map.Addresses(ADDRESSES).values(column)['ElfTextures']
+    return None, []
+
+
+def elf_file_size(path, address, files):
     """How far the texture file at address reaches: its CALL and page tables, its upload units and their data."""
     d = elf_image(path, address, 0x40000, partial=True)
     calls, pages = d[4], d[5] + d[7] * 256
@@ -208,7 +217,7 @@ def elf_file_size(path, address):
             else:
                 break
         end = max(end, q + 16)
-    following = [a - address for a in ELF_FILES if a > address]
+    following = [a - address for a in files if a > address]
     return min([(end + 15) & ~15] + following)
 
 
@@ -247,6 +256,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     parser.add_argument('disc')
     parser.add_argument('out')
+    parser.add_argument('--boot', choices=sorted(ELF_COLUMNS), help='the boot ELF the build is for (default: the one in the disc dir)')
     parser.add_argument('--only', default='', help='comma-separated leaf paths (/2/17,...)')
     parser.add_argument('--jobs', type=int, default=os.cpu_count() or 1, help='leaves converted at once (default: all cores)')
     args = parser.parse_args()
@@ -255,9 +265,9 @@ def main():
     with open(olk, 'rb') as f:
         listed = olk_leaves(f)
     jobs = [(olk, path, offset, size) for path, offset, size in listed if size and (not only or path in only)]
-    elf = os.path.join(args.disc, ELF_NAME)
-    if os.path.exists(elf):
-        jobs += [(elf, 'elf/%x' % address, address, elf_file_size(elf, address)) for address in ELF_FILES
+    elf, addresses = elf_files(args.disc, args.boot)
+    if elf:
+        jobs += [(elf, 'elf/%x' % address, address, elf_file_size(elf, address, addresses)) for address in addresses
                  if not only or 'elf/%x' % address in only]
     files, leaves = [], []
     pack = texture.TexturePackWriter()

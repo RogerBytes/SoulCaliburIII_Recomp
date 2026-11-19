@@ -32,30 +32,9 @@ namespace sc3
     {
         using namespace sc3::draw;
         using namespace sc3::fp;
-        constexpr uint32_t kFrameKick = 0x0010F098u;
-        constexpr uint32_t kFileRequest = 0x00150418u;
-        constexpr uint32_t kCdRead = 0x00424E28u;
-        // The movie task's copy of a picture into a texture file's pixels (handle, frame, pixels, flags) and the pointer
-        // of a file's upload to those pixels (pixels, file, call, page).
-        constexpr uint32_t kMovieCopy = 0x00217E28u, kFilePixels = 0x00118B68u;
         constexpr uint64_t kMovieKey = 1ull << 63;
         constexpr uint32_t kGlowPage = 0x2C40u;
         constexpr uint32_t kMovieSlots = 3u; // pictures a draw may still be waiting to use from the GS thread
-        constexpr uint32_t kGameStart = 0x00100008u;
-        constexpr uint32_t kLabels = 0x001388E8u;
-        constexpr uint32_t kTriangle = 0x00124C80u;
-        constexpr uint32_t kInsertMode = 0x00468CB0u; // 0x120978's mode
-        // Where 2D packets join the frame: the 2D insertion dispatcher (by the mode at 0x468CB0), fixed OT buckets, the
-        // text layers' buckets, and the in-order GIF list.
-        constexpr uint32_t kInserts[] = {0x00120978u, 0x0010DDF8u, 0x0010DF30u, 0x0010E068u, 0x0010E1C8u, 0x0010E368u,
-                                         0x0010D9A0u, 0x0010DC90u, 0x0010E1F8u, 0x0010D2F0u, 0x001132A8u};
-
-        constexpr uint32_t kRenderer = 0x005BE700u;   // +0 frame not built, +0x2c heap qwords used, +0x30 heap cursor, +0x54 the OT
-        constexpr uint32_t kOtLayerBase = 0x00467490u; // bucket offset of the current layer
-        constexpr uint32_t kOtGroups = 0x00467488u;    // 64 bits: the 128-bucket groups with packets
-        constexpr uint32_t k2d = 0x005BEDD0u;          // +0x4c the 2D texture file, +0x68 the 2D depth
-        constexpr uint32_t kAlphaTable = 0x0046EFD8u;
-        constexpr uint32_t kView = 0x0046DA88u;        // +0x460 the 2D view matrix
         constexpr uint32_t kView2dMatrix = 0x460u, kView3dMatrix = 0x448u; // the view's matrix slots
         constexpr uint32_t kScratchpad = 0x70000000u;
         constexpr uint32_t kSector = 2048u;
@@ -330,8 +309,6 @@ namespace sc3
 
         // 0x118E18 (a0 -> texture file): byte 0 2 or 3 marks a file not relocated yet (its tables are offsets); it relocates
         // the tables, then byte 0 = 0 and byte 3 the old kind. The upload of an item (0x117A38) runs it first.
-        constexpr uint32_t kFileRelocate = 0x00118E18u, kFileRelocateReturn = 0x00117A80u;
-
         void relocateItemFile(uint32_t item, uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
             const uint32_t file = peek32(item + 0x14u);
@@ -339,9 +316,9 @@ namespace sc3
                 return;
             const R5900Context saved = *ctx;
             setRegU32(ctx, 4, file);
-            setRegU32(ctx, 31, kFileRelocateReturn);
-            ctx->pc = kFileRelocate;
-            runGuest(func_0x118e18, rdram, ctx, runtime);
+            setRegU32(ctx, 31, addr::FileRelocateReturn);
+            ctx->pc = addr::FileRelocate;
+            runGuest(fn::FileRelocate, rdram, ctx, runtime);
             *ctx = saved;
             ++g_state.filesRelocated;
         }
@@ -563,7 +540,7 @@ namespace sc3
             const uint32_t handle = getRegU32(ctx, 4), dest = getRegU32(ctx, 6) & kRamMask;
             if (!s.moviePictures)
             {
-                callOriginal(kMovieCopy, rdram, ctx, runtime);
+                callOriginal(addr::MovieCopy, rdram, ctx, runtime);
                 return;
             }
             s.movieDests[dest] = handle;
@@ -576,7 +553,7 @@ namespace sc3
         {
             State &s = g_state;
             const uint32_t pixels = getRegU32(ctx, 4) & kRamMask, file = getRegU32(ctx, 5);
-            callOriginal(kFilePixels, rdram, ctx, runtime);
+            callOriginal(addr::FilePixels, rdram, ctx, runtime);
             const auto it = s.movieDests.find(pixels);
             if (it == s.movieDests.end() || !fileAddress(file))
                 return;
@@ -633,10 +610,10 @@ namespace sc3
         {
             if (mode == 1u)
             {
-                if (peek32(kRenderer) != 0u || depth < 0.0f || depth > 12.5f)
+                if (peek32(addr::Renderer) != 0u || depth < 0.0f || depth > 12.5f)
                     return Linked::Dropped;
                 const float z = std::min(depth * 0.12f, 1.0f);
-                const int32_t bucket = truncate(z * peekFloat(kRenderer + 0x34u));
+                const int32_t bucket = truncate(z * peekFloat(addr::Renderer + 0x34u));
                 if (static_cast<uint32_t>(bucket) >= 0x2000u)
                     return Linked::Dropped;
                 return linkMarker(key, bucket, true) ? Linked::Yes : Linked::Dropped;
@@ -655,7 +632,7 @@ namespace sc3
             return linkMarker(key, bucket) ? Linked::Yes : Linked::Dropped;
         }
 
-        Linked insert2d(uint64_t key, float depth) { return insert2d(key, peek32(kInsertMode), depth); }
+        Linked insert2d(uint64_t key, float depth) { return insert2d(key, peek32(addr::InsertMode), depth); }
 
         uint64_t newKey()
         {
@@ -702,7 +679,7 @@ namespace sc3
 
         void viewMatrix(float m[16])
         {
-            const uint32_t matrix = peek32(peek32(kView) + 0x460u);
+            const uint32_t matrix = peek32(peek32(addr::View) + 0x460u);
             for (int i = 0; i < 16; ++i)
                 m[i] = peekFloat(matrix + static_cast<uint32_t>(i) * 4u);
         }
@@ -773,10 +750,10 @@ namespace sc3
             ++stats.calls;
             if (count <= 0)
             {
-                callOriginal(kLabels, rdram, ctx, runtime);
+                callOriginal(addr::Labels, rdram, ctx, runtime);
                 return;
             }
-            const uint32_t file = peek32(k2d + 0x4Cu);
+            const uint32_t file = peek32(addr::TwoD + 0x4Cu);
             Page pages[2];
             bool used[2] = {false, false};
             for (int32_t i = 0; i < count; ++i)
@@ -789,13 +766,13 @@ namespace sc3
                 if (used[pass] && !page(file, pass, pages[pass], stats))
                 {
                     ++stats.toGs;
-                    callOriginal(kLabels, rdram, ctx, runtime);
+                    callOriginal(addr::Labels, rdram, ctx, runtime);
                     return;
                 }
             float m[16];
             viewMatrix(m);
-            const float z = peekFloat(k2d + 0x68u);
-            const uint64_t alpha = peek64(kAlphaTable + alphaIndex * 8u);
+            const float z = peekFloat(addr::TwoD + 0x68u);
+            const uint64_t alpha = peek64(addr::AlphaTable + alphaIndex * 8u);
             std::vector<std::vector<Sprite>> sprites;
             std::vector<GsVertex> triangles;
             for (uint32_t pass = 0; pass < 2u; ++pass)
@@ -874,22 +851,8 @@ namespace sc3
             std::vector<TextPacket> packets; // inserted, in the order the game inserts them
         };
 
-        constexpr uint32_t kText = 0x0011EA80u;
-        constexpr uint32_t kTextFormat = 0x0011CBC8u;
-        constexpr uint32_t kTextFormatReturn = 0x0011ED0Cu; // where 0x11EA80 returns from it
-        constexpr uint32_t kTextState = 0x00468540u;
         constexpr uint32_t kTextStateSize = 0x68u;
-        constexpr uint32_t kTextGlobals = 0x00468400u, kTextGlobalsSize = 0xC00u; // the state and the formatter's tables around it
-        constexpr uint32_t kFontFile = 0x004763B0u;
-        constexpr uint32_t kFontDescs = 0x005BE840u;   // 28 bytes a font
-        constexpr uint32_t kFontSt = 0x00468648u;      // per font: a glyph's two ST words, 16 bytes a code
-        constexpr uint32_t kFontKerning = 0x004684A8u; // per font: two bytes a code (offset * 16, advance)
-        constexpr uint32_t kGlyphShift = 0x00468A60u;  // a byte a code: > 0 raised, < 0 lowered by the state's offset
-        constexpr uint32_t kAccents = 0x00467848u;     // pointer: the accent drawn over codes 0xC0 and up
-        constexpr uint32_t kTextTex2 = 0x005BE8E8u;    // TEX2_2 by font * 16 + colour
-        constexpr uint32_t kTextAlphas = 0x004685C0u;  // ALPHA_2 by the state's byte 5
-        constexpr uint32_t kScreenMode = 0x00469230u;  // pointer: +0x50 non-zero, widths scaled
-        constexpr uint32_t kInsertText = 0x0010DF30u, kInsertLayer = 0x0010E068u, kInsertList = 0x0010E1C8u;
+        constexpr uint32_t kTextGlobalsSize = 0xC00u;  // the state and the formatter's tables around it
         constexpr uint32_t kPacketLimit = 0x1F40u;
         constexpr uint64_t kGlyphTag = 0x6400000000008000ull, kGlyphRegs = 0x42C120ull;
 
@@ -927,7 +890,7 @@ namespace sc3
         // 0x11E068 (call, state): the state's cursor through the 2D view to the GS (times 16), the call's corners.
         void textPlace(uint32_t c)
         {
-            const uint32_t t = kTextState;
+            const uint32_t t = addr::TextState;
             float m[16];
             viewMatrix(m);
             const float x = f(t + 0x10u), y = f(t + 0x14u), z = f(t + 0x18u);
@@ -1017,15 +980,15 @@ namespace sc3
 
         void textTex2(TextCall &call)
         {
-            const uint32_t t = kTextState;
-            textAd(call, 0x17u, peek64(kTextTex2 + (peek8(t) * 16u + peek8(t + 1u)) * 8u));
+            const uint32_t t = addr::TextState;
+            textAd(call, 0x17u, peek64(addr::TextTex2 + (peek8(t) * 16u + peek8(t + 1u)) * 8u));
         }
 
         void textAlpha(TextCall &call)
         {
-            const uint32_t t = kTextState;
+            const uint32_t t = addr::TextState;
             const uint32_t index = peek8(t + 5u);
-            textAd(call, 0x43u, peek64(kTextAlphas + index * 8u));
+            textAd(call, 0x43u, peek64(addr::TextAlphas + index * 8u));
             poke32(t + 0x58u, textColour(t + 0x20u));
             if (peek8(t + 5u) == 0u)
                 poke8(t + 0x5Bu, 0x80u);
@@ -1043,7 +1006,7 @@ namespace sc3
         uint32_t textInsertion(int32_t mode)
         {
             const int32_t kind = mode & 7;
-            return kind == 2 ? kInsertList : kind == 4 ? kInsertLayer : kInsertText;
+            return kind == 2 ? addr::InsertList : kind == 4 ? addr::InsertLayer : addr::InsertText;
         }
 
         // The packet inserted (the game's insertion through the call's +0x48 with the state's layer).
@@ -1051,7 +1014,7 @@ namespace sc3
         {
             TextPacket packet;
             packet.insert = textInsertion(call.mode);
-            packet.layer = peek8(kTextState + 6u);
+            packet.layer = peek8(addr::TextState + 6u);
             packet.writes = std::move(call.run.writes);
             call.run.writes.clear();
             call.run.packets.push_back(std::move(packet));
@@ -1061,7 +1024,7 @@ namespace sc3
         // 0x11E740 (buffer, call, state): a run measured, the cursor moved over it.
         void textMeasure(TextCall &call)
         {
-            const uint32_t c = call.c, t = kTextState;
+            const uint32_t c = call.c, t = addr::TextState;
             if (peek32(c + 0x40u) == 0u)
                 textPlace(c);
             const float spacing = f(c + 0x10u);
@@ -1101,7 +1064,7 @@ namespace sc3
 
         void textGlyph(TextCall &call, uint32_t code, int32_t x0, int32_t y0, int32_t x1, int32_t y1)
         {
-            const uint32_t c = call.c, t = kTextState;
+            const uint32_t c = call.c, t = addr::TextState;
             poke32(c + 0x3Cu, peek32(c + 0x3Cu) + 1u);
             const uint32_t st = peek32(c + 0x18u) + code * 16u;
             const uint64_t z = peek32(c + 0x40u);
@@ -1122,7 +1085,7 @@ namespace sc3
         // 0x11E160 (buffer, call, state): a run of glyphs drawn, the cursor moved over it.
         void textDraw(TextCall &call)
         {
-            const uint32_t c = call.c, t = kTextState;
+            const uint32_t c = call.c, t = addr::TextState;
             TextRun &r = call.run;
             if (peek32(c + 0x40u) == 0u)
                 textPlace(c);
@@ -1223,7 +1186,7 @@ namespace sc3
                             int32_t gy0 = y0, gy1 = y1;
                             if (shifted)
                             {
-                                const int8_t how = static_cast<int8_t>(peek8(kGlyphShift + code));
+                                const int8_t how = static_cast<int8_t>(peek8(addr::GlyphShift + code));
                                 if (how > 0)
                                     gy0 = raised0, gy1 = raised1;
                                 else if (how < 0 && accented != 0u)
@@ -1231,7 +1194,7 @@ namespace sc3
                             }
                             textGlyph(call, code, gx0, gy0, gx1, gy1);
                             if (code >= 0xC0u && accented != 0u)
-                                if (const uint8_t accent = peek8(peek32(kAccents) + (code - 0xC0u)); accent != 0u)
+                                if (const uint8_t accent = peek8(peek32(addr::Accents) + (code - 0xC0u)); accent != 0u)
                                     textGlyph(call, accent, gx0, y0, gx1, y1);
                         }
                         drawn = true;
@@ -1285,7 +1248,7 @@ namespace sc3
         // 0x11E898 (buffer, call, state): the last packet inserted, the cursor where the text ends.
         void textEnd(TextCall &call)
         {
-            const uint32_t c = call.c, t = kTextState;
+            const uint32_t c = call.c, t = addr::TextState;
             TextRun &r = call.run;
             if (peek16(c + 0x44u) != 0u)
             {
@@ -1307,7 +1270,7 @@ namespace sc3
         // 0x11E9B0: the end of a measure, the widest line kept.
         void textMeasureEnd(TextCall &call)
         {
-            const uint32_t c = call.c, t = kTextState;
+            const uint32_t c = call.c, t = addr::TextState;
             if (f(t + 0x10u) < f(c + 0x58u))
                 setF(t + 0x10u, f(c + 0x58u));
             if (peek32(c + 0x54u) != 0u)
@@ -1330,7 +1293,7 @@ namespace sc3
         void textCall(TextCall &call, uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime, uint32_t string, uint32_t argument)
         {
             State &s = g_state;
-            const uint32_t t = kTextState;
+            const uint32_t t = addr::TextState;
             const uint32_t sp = getRegU32(ctx, 29) - 0x4D0u;
             call.frame = sp;
             call.c = sp + 0x410u;
@@ -1339,9 +1302,9 @@ namespace sc3
             poke32(sp, string);
             poke32(sp + 4u, argument);
             const uint32_t font = peek8(t);
-            poke32(c + 0x14u, kFontDescs + font * 28u);
-            poke32(c + 0x18u, peek32(kFontSt + font * 4u));
-            poke32(c + 0x1Cu, peek32(kFontKerning + font * 4u));
+            poke32(c + 0x14u, addr::FontDescs + font * 28u);
+            poke32(c + 0x18u, peek32(addr::FontSt + font * 4u));
+            poke32(c + 0x1Cu, peek32(addr::FontKerning + font * 4u));
             poke64(c + 0x38u, peek64(t + 0x18u));
             poke64(c + 0x30u, peek64(t + 0x10u));
             poke32(c + 0x28u, 0u);
@@ -1353,7 +1316,7 @@ namespace sc3
             poke32(c + 0x50u, 0u);
             poke32(c + 0x54u, 0u);
             float scale = 1.0f;
-            if (peek32(peek32(kScreenMode) + 0x50u) != 0u)
+            if (peek32(peek32(addr::ScreenMode) + 0x50u) != 0u)
             {
                 const uint32_t bits = 0x3F4DB9CCu;
                 float k;
@@ -1420,9 +1383,9 @@ namespace sc3
                 setRegU32(ctx, 6, sp + 4u);
                 setRegU32(ctx, 7, c);
                 setRegU32(ctx, 8, t);
-                setRegU32(ctx, 31, kTextFormatReturn);
-                ctx->pc = kTextFormat;
-                runGuest(func_0x11cbc8, rdram, ctx, runtime);
+                setRegU32(ctx, 31, addr::TextFormatReturn);
+                ctx->pc = addr::TextFormat;
+                runGuest(fn::TextFormat, rdram, ctx, runtime);
                 const uint32_t what = getRegU32(ctx, 2);
                 setRegU32(ctx, 29, savedSp);
                 setRegU32(ctx, 31, savedRa);
@@ -1441,10 +1404,10 @@ namespace sc3
 
         bool linkTextMarker(uint64_t key, uint32_t insert, uint32_t layer)
         {
-            if (insert == kInsertList)
+            if (insert == addr::InsertList)
                 return linkGifListMarker(key);
             int32_t l = static_cast<int32_t>(layer);
-            if (insert == kInsertText)
+            if (insert == addr::InsertText)
             {
                 l -= 1;
                 l = l < 0 ? 0 : l >= 4 ? 3 : l;
@@ -1492,7 +1455,7 @@ namespace sc3
                 if (out.empty() || out.back().first.alpha != alpha || out.back().first.tex0.cbp != ((tex2 >> 37) & 0x3FFFu))
                 {
                     Page p;
-                    if (!page(kFontFile, 0u, p, s.text, static_cast<uint32_t>((tex2 >> 37) & 0x3FFFu)))
+                    if (!page(addr::FontFile, 0u, p, s.text, static_cast<uint32_t>((tex2 >> 37) & 0x3FFFu)))
                         return false;
                     p.tex0 = (p.tex0 & ~kTex2Fields) | (tex2 & kTex2Fields);
                     out.emplace_back(spriteMaterial(p, alpha), std::vector<GsVertex>{});
@@ -1549,10 +1512,10 @@ namespace sc3
             const int32_t mode = static_cast<int32_t>(getRegU32(ctx, 4));
             const uint32_t string = getRegU32(ctx, 5), argument = getRegU32(ctx, 6);
             Page font;
-            if (mode != 0 && (!page(kFontFile, 0u, font, stats)))
+            if (mode != 0 && (!page(addr::FontFile, 0u, font, stats)))
             {
                 ++stats.toGs;
-                callOriginal(kText, rdram, ctx, runtime);
+                callOriginal(addr::Text, rdram, ctx, runtime);
                 return;
             }
             TextCall call;
@@ -1621,7 +1584,7 @@ namespace sc3
             if (linked == Linked::NotHere)
             {
                 ++stats.toGs;
-                callOriginal(kTriangle, rdram, ctx, runtime);
+                callOriginal(addr::Triangle, rdram, ctx, runtime);
                 return;
             }
             if (linked == Linked::Yes && drawn)
@@ -1635,8 +1598,6 @@ namespace sc3
 
         // ---- 0x123340 (a0 -> the corner (x, y, z, w), a1 RGBA, a2 ALPHA_2 (0: 0x2A, alpha byte 0x80), f12 / f13 the size):
         // an untextured blended sprite (PRIM 0x246), inserted through 0x120978 at the corners' mean Q times w (-w when w < 0)
-
-        constexpr uint32_t kQuad = 0x00123340u;
 
         void quad(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
@@ -1673,7 +1634,7 @@ namespace sc3
             if (linked == Linked::NotHere)
             {
                 ++stats.toGs;
-                callOriginal(kQuad, rdram, ctx, runtime);
+                callOriginal(addr::Quad, rdram, ctx, runtime);
                 return;
             }
             if (linked == Linked::Yes)
@@ -1687,8 +1648,6 @@ namespace sc3
 
         // ---- 0x1223D0 (a0 / a1 -> the ends as packed XYZ2 quadwords, a2 RGBA, a3 ALPHA_2, f12 the depth): one
         // antialiased blended line (PRIM 0x2C1), inserted through 0x120978
-
-        constexpr uint32_t kLine = 0x001223D0u;
 
         void line(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
@@ -1721,7 +1680,7 @@ namespace sc3
             if (linked == Linked::NotHere)
             {
                 ++stats.toGs;
-                callOriginal(kLine, rdram, ctx, runtime);
+                callOriginal(addr::Line, rdram, ctx, runtime);
                 return;
             }
             if (linked == Linked::Yes && drawn)
@@ -1735,8 +1694,6 @@ namespace sc3
 
         // ---- 0x1220C0 (a0 / a1 -> the ends as packed XYZ2 quadwords, a2 / a3 their RGBAQ quadwords, t0 ALPHA_2, f12 the
         // depth): one antialiased Gouraud-shaded blended line (PRIM 0x2C9), inserted through 0x120978
-
-        constexpr uint32_t kShadedLine = 0x001220C0u;
 
         void shadedLine(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
@@ -1766,7 +1723,7 @@ namespace sc3
             if (linked == Linked::NotHere)
             {
                 ++stats.toGs;
-                callOriginal(kShadedLine, rdram, ctx, runtime);
+                callOriginal(addr::ShadedLine, rdram, ctx, runtime);
                 return;
             }
             if (linked == Linked::Yes && drawn)
@@ -1781,13 +1738,6 @@ namespace sc3
         // ---- 0x1280F8 (a0 the icon, a1 -> float colour, a2 ALPHA_2, f12 / f13 x, y, f14 / f15 width, height): one textured
         // sprite of the menu icons' file (in the ELF at 0x4AF170, page 0) into bucket 0x1FF2. Icons 0x12 and up (another
         // builder, 0x127AD8) and the first call (the file's set-up, 0x128038) are the game's.
-
-        constexpr uint32_t kIcon = 0x001280F8u;
-        constexpr uint32_t kIconFile = 0x004AF170u;
-        constexpr uint32_t kIconSt = 0x005BECA0u;
-        constexpr uint32_t kIconDepth = 0x00468D5Cu, kIconReady = 0x00468D58u, kIconUpload = 0x00468D60u;
-        constexpr uint32_t kNoGsPackets = 0x0046E5DBu;
-        constexpr uint32_t kDefaultDepth = 0x0011FF98u;
 
         // 0x11AAA0 (colour, scale): a float colour's RGBAQ words, int(c.xyz * scale), int(c.w * 128), each at most 255.
         void colourWords(uint32_t colour, float scale, uint32_t out[4])
@@ -1807,25 +1757,25 @@ namespace sc3
             const int32_t asked = static_cast<int32_t>(getRegU32(ctx, 4));
             const uint32_t index = static_cast<uint32_t>(std::min(std::max(asked, 0), 0x39));
             Page pageRegs;
-            if (peek8(kNoGsPackets) != 0u || index >= 0x12u || peek32(kIconReady) == 0u ||
-                !page(kIconFile, 0u, pageRegs, stats))
+            if (peek8(addr::NoGsPackets) != 0u || index >= 0x12u || peek32(addr::IconReady) == 0u ||
+                !page(addr::IconFile, 0u, pageRegs, stats))
             {
-                if (peek8(kNoGsPackets) == 0u)
+                if (peek8(addr::NoGsPackets) == 0u)
                     ++stats.toGs;
-                callOriginal(kIcon, rdram, ctx, runtime);
+                callOriginal(addr::Icon, rdram, ctx, runtime);
                 return;
             }
             const uint32_t colourVec = getRegU32(ctx, 5);
             const uint64_t alpha = reg64(ctx, 6);
             const float x = ctx->f[12], y = ctx->f[13], width = ctx->f[14], height = ctx->f[15];
-            float z = peekFloat(kIconDepth);
+            float z = peekFloat(addr::IconDepth);
             if (z == 0.0f)
             {
                 const uint32_t pc = ctx->pc, ra = getRegU32(ctx, 31);
                 const float saved[4] = {ctx->f[12], ctx->f[13], ctx->f[14], ctx->f[15]};
-                setRegU32(ctx, 31, kIcon + 0x8u);
-                ctx->pc = kDefaultDepth;
-                runGuest(originalOf(kDefaultDepth), rdram, ctx, runtime);
+                setRegU32(ctx, 31, addr::Icon + 0x8u);
+                ctx->pc = addr::DefaultDepth;
+                runGuest(originalOf(addr::DefaultDepth), rdram, ctx, runtime);
                 z = ctx->f[0];
                 setRegU32(ctx, 31, ra);
                 ctx->pc = pc;
@@ -1849,7 +1799,7 @@ namespace sc3
             const float sx = width * 21.0f, sy = height * 21.0f;
             uint32_t colour[4];
             colourWords(colourVec, 128.0f, colour);
-            const uint32_t st = kIconSt + index * 16u;
+            const uint32_t st = addr::IconSt + index * 16u;
             const GsPoint p0{ftoi4(at[0]), ftoi4(at[1]), ftoi4(at[2])};
             const GsPoint p1{ftoi4(at[0] + sx), ftoi4(at[1] + sy), ftoi4(at[2] + 0.0f)};
             const uint32_t s0 = peek32(st), t0 = peek32(st + 4u), s1 = peek32(st + 8u), t1 = peek32(st + 12u);
@@ -1867,7 +1817,7 @@ namespace sc3
                 ++stats.sprites;
                 ++stats.markers;
             }
-            poke32(kIconUpload, 1u);
+            poke32(addr::IconUpload, 1u);
             ++stats.native;
             ctx->pc = getRegU32(ctx, 31);
         }
@@ -1877,13 +1827,11 @@ namespace sc3
         // label buckets, for the GS only. Dropped while the native 2D is on and the file's page is in the pack (else the
         // builders fall back to the GS, which needs them).
 
-        constexpr uint32_t kFontUpload = 0x0011FCF0u, kLabelsUpload = 0x00138860u, kIconsUpload = 0x00128080u;
-
         void upload(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
             State &s = g_state;
             const uint32_t at = ctx->pc;
-            const uint32_t file = at == kFontUpload ? kFontFile : at == kIconsUpload ? kIconFile : peek32(k2d + 0x4Cu);
+            const uint32_t file = at == addr::FontUpload ? addr::FontFile : at == addr::IconsUpload ? addr::IconFile : peek32(addr::TwoD + 0x4Cu);
             Page p;
             BuilderStats unused;
             if (!page(file, 0u, p, unused))
@@ -1899,8 +1847,6 @@ namespace sc3
         // 0x118430) or of the block +0x10 (0x117B80 / 0x118700), then TEXFLUSH, for later draws. Dropped while the native 2D
         // is on and every page of the file +0x14 is in the pack with its texture; never in the first two frames the upload is
         // seen.
-
-        constexpr uint32_t kUploadItem = 0x00115600u;
 
         void uploadItem(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
@@ -1919,7 +1865,7 @@ namespace sc3
             if (!packed)
             {
                 ++s.uploadsKept[file];
-                callOriginal(kUploadItem, rdram, ctx, runtime);
+                callOriginal(addr::UploadItem, rdram, ctx, runtime);
                 return;
             }
             ++s.uploadsDropped;
@@ -1935,10 +1881,6 @@ namespace sc3
         // A packet takes 0x9C vertices and the two before them; a vertex behind w 0.08 or off the GS's range and the two
         // after it carry ADC.
 
-        constexpr uint32_t kStrips = 0x001134A0u;
-        constexpr uint32_t kStripTable = 0x00467510u, kStripInsertion = 0x00467520u;
-        constexpr uint32_t kStripInserts[] = {0x001132A8u, 0x0010D9A0u, 0x00110D78u, 0x00113250u};
-        constexpr uint32_t kStripClip = 0x00467690u, kStripColourMax = 0x00467600u, kStripDepthMin = 0x0058A560u;
         constexpr uint32_t kStripPacketVertices = 0x9Cu;
         constexpr uint32_t kUnknownWord = 0xFFFFFFFFu;
 
@@ -2051,7 +1993,7 @@ namespace sc3
                 return false;
             const uint32_t count = peek16(item + 8u);
             call.mode = peek8(item + 0xAu) & 3u;
-            call.insertion = peek32(kStripTable + call.mode * 4u);
+            call.insertion = peek32(addr::StripTable + call.mode * 4u);
             uint32_t p = peek32(item + 0xCu);
             call.file = peek32(item + 0x14u);
             if (p == 0u || (p & 0xFu) != 0u || call.file == 0u || (call.file & 0xFu) != 0u)
@@ -2062,7 +2004,7 @@ namespace sc3
             call.alpha = peek64(item);
             if (call.alpha == 0u)
                 call.alpha = 0x2Au;
-            const uint32_t view = peek32(kView);
+            const uint32_t view = peek32(addr::View);
             Vec matrix[4];
             const uint32_t kind = peek8(item + 0x1Du);
             if (kind == 1u || kind == 2u)
@@ -2072,11 +2014,11 @@ namespace sc3
                     matrix[i] = loadVec(peek32(view + 0x448u) + static_cast<uint32_t>(i) * 16u);
             Vec *vf = vu.vf;
             const Vec one = lane(vf[0], 3);
-            vf[23] = loadVec(kStripClip);
+            vf[23] = loadVec(addr::StripClip);
             vf[24] = loadVec(item + 0x20u);
             vf[25] = ps2_vsub(vf[0], one);
             vf[24] = put(vf[24], ps2_vadd(vf[0], lane(vf[23], 2)), 8u);
-            vf[26] = loadVec(kStripColourMax);
+            vf[26] = loadVec(addr::StripColourMax);
             vf[27] = loadVec(view + 0x380u);
             for (int i = 0; i < 4; ++i)
                 vf[28 + i] = matrix[i];
@@ -2087,7 +2029,7 @@ namespace sc3
             if (projected)
             {
                 const uint32_t projection = peek32(view + 0x454u);
-                vf[18] = loadVec(kStripDepthMin);
+                vf[18] = loadVec(addr::StripDepthMin);
                 vf[21] = loadVec(projection + 0x20u);
                 vf[22] = loadVec(projection + 0x30u);
                 vf[24] = put(vf[24], ps2_vsub(vf[0], lane(vf[24], 2)), 4u);
@@ -2217,15 +2159,13 @@ namespace sc3
         // the two after it carry ADC. Depth: the drawn vertices over the sum of their z / the Z scale (-(+0x28) when
         // negative), +0x2C their mean.
 
-        constexpr uint32_t kScreenStrips = 0x00114B50u;
-
         bool screenStripBuild(uint32_t item, Vu0 &vu, StripCall &call)
         {
             if (peek8(item + 0x1Eu) == 0u)
                 return false;
             const uint32_t count = peek16(item + 8u);
             call.mode = peek8(item + 0xAu) & 3u;
-            call.insertion = peek32(kStripTable + call.mode * 4u);
+            call.insertion = peek32(addr::StripTable + call.mode * 4u);
             uint32_t p = peek32(item + 0xCu);
             call.file = peek32(item + 0x14u);
             if (p == 0u || (p & 0xFu) != 0u || call.file == 0u || (call.file & 0xFu) != 0u)
@@ -2236,7 +2176,7 @@ namespace sc3
             call.alpha = peek64(item);
             if (call.alpha == 0u)
                 call.alpha = 0x2Au;
-            const uint32_t view = peek32(kView);
+            const uint32_t view = peek32(addr::View);
             Vec matrix[4];
             const uint32_t kind = peek8(item + 0x1Du);
             if (kind == 1u || kind == 2u)
@@ -2248,14 +2188,14 @@ namespace sc3
             const bool fixedDepth = FPU_C_OLT_S(fixed, 0.0f);
             Vec *vf = vu.vf;
             const Vec one = lane(vf[0], 3);
-            vf[23] = loadVec(kStripClip);
+            vf[23] = loadVec(addr::StripClip);
             vf[24] = loadVec(item + 0x20u);
             if (fixedDepth)
                 vf[24] = put(vf[24], _mm_set1_ps(1.0f), 4u);
             vf[25] = ps2_vsub(vf[0], one);
             vu.q = ps2_fdiv(1.0f, vecLane(vf[24], 2));
             vf[24] = put(vf[24], ps2_vadd(vf[0], lane(vf[23], 2)), 8u);
-            vf[26] = loadVec(kStripColourMax);
+            vf[26] = loadVec(addr::StripColourMax);
             vf[27] = loadVec(view + 0x380u);
             for (int i = 0; i < 4; ++i)
                 vf[28 + i] = matrix[i];
@@ -2418,16 +2358,14 @@ namespace sc3
         // base +4 + t2 * 4 : t2). Recorded by where the copy goes, so a head-2 draw finds its page and CLUT without
         // reading the copy.
 
-        constexpr uint32_t kPageCopy = 0x001191D0u, kPageCopyClut = 0x00119318u, kPageCopyCbp = 0x00119248u;
-
         bool resolveCopy(State::PageCopy &copy, Page &out, BuilderStats &stats);
 
         void pageCopy(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
             const uint32_t at = ctx->pc, file = getRegU32(ctx, 4);
             State::PageCopy &copy = g_state.pageCopies[getRegU32(ctx, 5)];
-            copy = {file, getRegU32(ctx, 6), at == kPageCopyClut ? getRegU32(ctx, 7) : 0u, false};
-            if (at == kPageCopyCbp)
+            copy = {file, getRegU32(ctx, 6), at == addr::PageCopyClut ? getRegU32(ctx, 7) : 0u, false};
+            if (at == addr::PageCopyCbp)
             {
                 uint32_t base = getRegU32(ctx, 10);
                 if (getRegU32(ctx, 9) != 0u)
@@ -2540,11 +2478,11 @@ namespace sc3
             if (!build(item, vu, call))
             {
                 if (peek8(item + 0x1Eu) != 0u)
-                    poke32(kStripInsertion, call.insertion);
+                    poke32(addr::StripInsertion, call.insertion);
                 ctx->pc = getRegU32(ctx, 31);
                 return;
             }
-            poke32(kStripInsertion, call.insertion);
+            poke32(addr::StripInsertion, call.insertion);
             GsMaterial m = spriteMaterial(pageRegs, head == 1u ? pageRegs.alpha : call.alpha);
             m.prim = decodePrim(call.prim);
             m.prim.type = GS_PRIM_TRIANGLE;
@@ -2579,12 +2517,12 @@ namespace sc3
 
         void stripsDraw(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
-            stripItemDraw(kStrips, stripBuild, g_state.strips, g_state.stripForms, rdram, ctx, runtime);
+            stripItemDraw(addr::Strips, stripBuild, g_state.strips, g_state.stripForms, rdram, ctx, runtime);
         }
 
         void screenStripsDraw(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
-            stripItemDraw(kScreenStrips, screenStripBuild, g_state.screenStrips, g_state.screenStripForms, rdram, ctx, runtime);
+            stripItemDraw(addr::ScreenStrips, screenStripBuild, g_state.screenStrips, g_state.screenStripForms, rdram, ctx, runtime);
         }
 
         void screenStrips(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
@@ -2594,17 +2532,6 @@ namespace sc3
 
         // ---- the screen-effect layer: the background behind the 3D (a sky band and a ground band split at the horizon,
         // context 1, Z written 0), built inline in the GIF list by 0x12C690 or into a slot it leaves there by 0x12C7E0.
-
-        constexpr uint32_t kEffectSlot = 0x00469210u;      // the GIF list slot 0x12C690 left for 0x12C7E0 (0: none)
-        constexpr uint32_t kEffectCamera = 0x004696C0u;    // 0x12B7D0's a1: the camera / light holder
-        constexpr uint32_t kEffectGlobals = 0x00469234u;   // pointer: +0x10 / +0x108 the TEST left after, +0x70 slot or inline
-        constexpr uint32_t kNoPacketsByte = 0x0046E5DBu;   // set: the layer builds nothing
-        constexpr uint32_t kInlineByte = 0x0046E5D1u;      // set: 0x12C690 builds inline even when +0x70 asks for a slot
-        constexpr uint32_t kXyoffsetShadow = 0x00470F80u;  // +0x28 / +0x2C: XYOFFSET_1 as the game last wrote it
-        constexpr uint32_t kFillList = 0x005BEE80u;        // 0x13CCA8's prebuilt full-screen sprites (15 quadwords)
-        constexpr uint32_t kGifListCursor = 0x005BE708u;   // 0x10DB68: list address = *(+8) + (p - *(0x70000000))
-        constexpr uint32_t kRoll = 0x00135F78u, kLight = 0x00135C68u;
-        constexpr uint32_t kEffectInline = 0x0012C690u, kEffectLayer = 0x0012C7E0u;
 
         struct EffectDraw
         {
@@ -2655,7 +2582,7 @@ namespace sc3
         // +0x108 are set.
         uint64_t effectTestAfter()
         {
-            const uint32_t g = peek32(kEffectGlobals);
+            const uint32_t g = peek32(addr::EffectGlobals);
             if (peek32(g + 0x10u) == 0u)
                 return 0x30000u;
             return ((peek64(g + 0x108u) >> 2) & 3u) != 0u ? 0x30000u : 0x5002Du;
@@ -2708,8 +2635,8 @@ namespace sc3
                 b.draws.push_back(std::move(d));
                 return;
             }
-            const int32_t ox = 0x6C00 - static_cast<int32_t>(peek16(kXyoffsetShadow + 0x28u));
-            const int32_t oy = 0x7200 - static_cast<int32_t>(peek16(kXyoffsetShadow + 0x2Cu));
+            const int32_t ox = 0x6C00 - static_cast<int32_t>(peek16(addr::XyoffsetShadow + 0x28u));
+            const int32_t oy = 0x7200 - static_cast<int32_t>(peek16(addr::XyoffsetShadow + 0x2Cu));
             const auto clamp = [](int32_t v) { return std::min(std::max(v, 0), 0xFFFF); };
             int32_t a = clamp(x0 - ox), c = clamp(x1 - ox);
             const int32_t top = clamp(y0 - oy), bottom = clamp(y1 - oy);
@@ -2860,7 +2787,7 @@ namespace sc3
             setRegU32(ctx, 29, frame);
             setRegU32(ctx, 4, a0);
             setRegU32(ctx, 5, a1);
-            setRegU32(ctx, 31, kEffectLayer + 8u);
+            setRegU32(ctx, 31, addr::EffectLayer + 8u);
             ctx->pc = address;
             runGuest(originalOf(address), rdram, ctx, runtime);
             const float f0 = ctx->f[0];
@@ -2874,15 +2801,15 @@ namespace sc3
                            const float below[4], uint32_t flagA, uint32_t flagB, float halfWidth, float halfHeight, float lightHeight)
         {
             const uint32_t frame = (getRegU32(ctx, 29) - 0x200u) & ~0xFu;
-            if (callGame(kRoll, rdram, ctx, runtime, kEffectCamera, 0u, frame) != 0.0f)
+            if (callGame(addr::Roll, rdram, ctx, runtime, addr::EffectCamera, 0u, frame) != 0.0f)
                 return false;
             const uint32_t lightAt = frame + 0x100u;
-            callGame(kLight, rdram, ctx, runtime, kEffectCamera, lightAt, frame);
+            callGame(addr::Light, rdram, ctx, runtime, addr::EffectCamera, lightAt, frame);
             float light[4], dir[4];
             for (int i = 0; i < 4; ++i)
             {
                 light[i] = peekFloat(lightAt + static_cast<uint32_t>(i) * 4u);
-                dir[i] = peekFloat(kEffectCamera + 0x20u + static_cast<uint32_t>(i) * 4u);
+                dir[i] = peekFloat(addr::EffectCamera + 0x20u + static_cast<uint32_t>(i) * 4u);
             }
             for (int i = 0; i < 3; ++i)
                 dir[i] = dir[i] - light[i];
@@ -2895,7 +2822,7 @@ namespace sc3
             for (int i = 0; i < 3; ++i)
                 p[i] = light[i] + dir[i] * 10000.0f;
             p[3] = 1.0f;
-            const uint32_t view = peek32(kView);
+            const uint32_t view = peek32(addr::View);
             const uint32_t m = peek32(view + 0x448u);
             float q[4];
             for (int i = 0; i < 4; ++i)
@@ -2961,10 +2888,10 @@ namespace sc3
             State &s = g_state;
             BuilderStats &stats = s.effects;
             ++stats.calls;
-            const uint32_t slot = peek32(kEffectSlot);
+            const uint32_t slot = peek32(addr::EffectSlot);
             if (slot == 0u)
             {
-                callOriginal(kEffectLayer, rdram, ctx, runtime);
+                callOriginal(addr::EffectLayer, rdram, ctx, runtime);
                 return;
             }
             const uint32_t view = getRegU32(ctx, 4);
@@ -2978,10 +2905,10 @@ namespace sc3
             if (!drafted)
             {
                 ++stats.toGs;
-                callOriginal(kEffectLayer, rdram, ctx, runtime);
+                callOriginal(addr::EffectLayer, rdram, ctx, runtime);
                 return;
             }
-            if (peek32(kRenderer) == 0u && s.effectSlot)
+            if (peek32(addr::Renderer) == 0u && s.effectSlot)
             {
                 const uint64_t key = newKey();
                 effectDraw(b, key);
@@ -2990,7 +2917,7 @@ namespace sc3
                 ++stats.markers;
             }
             s.effectSlot.reset();
-            poke32(kEffectSlot, 0u);
+            poke32(addr::EffectSlot, 0u);
             ++stats.native;
             ctx->pc = getRegU32(ctx, 31);
         }
@@ -3005,17 +2932,17 @@ namespace sc3
             BuilderStats &stats = s.effects;
             ++stats.calls;
             const uint32_t view = getRegU32(ctx, 4), cursor = getRegU32(ctx, 5);
-            poke32(kEffectSlot, 0u);
-            if (peek8(kNoPacketsByte) != 0u)
+            poke32(addr::EffectSlot, 0u);
+            if (peek8(addr::NoPacketsByte) != 0u)
             {
                 setReturnU32(ctx, cursor);
                 ctx->pc = getRegU32(ctx, 31);
                 return;
             }
-            const uint32_t wanted = peek32(peek32(kEffectGlobals) + 0x70u);
-            if (peek8(kInlineByte) == 0u && wanted != 0u)
+            const uint32_t wanted = peek32(peek32(addr::EffectGlobals) + 0x70u);
+            if (peek8(addr::InlineByte) == 0u && wanted != 0u)
             {
-                poke32(kEffectSlot, peek32(kGifListCursor) + (cursor - peek32(kScratchpad)));
+                poke32(addr::EffectSlot, peek32(addr::GifListCursor) + (cursor - peek32(kScratchpad)));
                 s.effectSlot = ot::gifSlot(rdram);
                 poke64(cursor, 0x10000000ull);
                 poke64(cursor + 8u, 0u);
@@ -3037,7 +2964,7 @@ namespace sc3
             if (!drafted)
             {
                 ++stats.toGs;
-                callOriginal(kEffectInline, rdram, ctx, runtime);
+                callOriginal(addr::EffectInline, rdram, ctx, runtime);
                 return;
             }
             const uint64_t key = newKey();
@@ -3060,10 +2987,6 @@ namespace sc3
         // the angle), +0x40 more size, +0x48 the ST rows, +0x4C drawn, +0x4D the corners' order. One rotated quad each (a
         // strip of four vertices, PRIM 0x254) with its own head and packet (0x10FE50), at depth +0x38 / w (Z: 1 / the
         // clamped w - size z).
-
-        constexpr uint32_t kObjects = 0x00110E50u;
-        constexpr uint32_t kObjectSt = 0x00467580u; // the ST rows of a page's whole texture (0x10FE50 scales them)
-        constexpr uint32_t kObjectDepthClamp = 0x0058A530u;
 
         // 0x100AC0 (f12 -> *a0, *a1): its set-up in C++ and its VU0 microprogram (0x38) run as the game's vcallms runs it;
         // the quadrant picks the two lanes of vf2 it stores.
@@ -3139,10 +3062,10 @@ namespace sc3
             pageSizes(file, index, width, height, tw, th);
             const float sw = FPU_DIV_S(FPU_CVT_S_W(static_cast<uint32_t>(width)), FPU_CVT_S_W(static_cast<uint32_t>(tw)));
             const float sh = FPU_DIV_S(FPU_CVT_S_W(static_cast<uint32_t>(height)), FPU_CVT_S_W(static_cast<uint32_t>(th)));
-            pokeFloat(kObjectSt + 0x10u, sw);
-            pokeFloat(kObjectSt + 0x30u, sw);
-            pokeFloat(kObjectSt + 0x24u, sh);
-            pokeFloat(kObjectSt + 0x34u, sh);
+            pokeFloat(addr::ObjectSt + 0x10u, sw);
+            pokeFloat(addr::ObjectSt + 0x30u, sw);
+            pokeFloat(addr::ObjectSt + 0x24u, sh);
+            pokeFloat(addr::ObjectSt + 0x34u, sh);
         }
 
         // The sprites 0x110E50 builds for `item` (false: none), VU0 on a copy that ends as the game's.
@@ -3152,7 +3075,7 @@ namespace sc3
             uint32_t e = peek32(item + 0xCu);
             if (count == 0u || e == 0u)
                 return false;
-            const uint32_t view = peek32(kView);
+            const uint32_t view = peek32(addr::View);
             call.alpha = peek64(item);
             if (call.alpha == 0u)
                 call.alpha = 0x2Au;
@@ -3160,7 +3083,7 @@ namespace sc3
             const bool adFirst = (peek8(item + 0x1Du) & 1u) != 0u;
             call.test = (peek8(item + 0x1Fu) & 0x40u) != 0u;
             call.mode = peek8(item + 0xAu) & 3u;
-            call.insertion = peek32(kStripTable + call.mode * 4u);
+            call.insertion = peek32(addr::StripTable + call.mode * 4u);
             call.file = peek32(item + 0x14u);
             call.page = peek8(item + 0x18u);
             uint32_t prim = 0x254u;
@@ -3170,7 +3093,7 @@ namespace sc3
             call.regs = adFirst ? 0x424242421EFEull : 0x424242421EFFull;
             Vec *vf = vu.vf;
             const Vec one = lane(vf[0], 3);
-            vf[26] = loadVec(kStripColourMax);
+            vf[26] = loadVec(addr::StripColourMax);
             vf[27] = loadVec(view + 0x380u);
             const uint32_t matrix = peek32(view + 0x448u);
             for (int i = 0; i < 4; ++i)
@@ -3183,7 +3106,7 @@ namespace sc3
             const bool projected = (peek8(item + 0x1Fu) & 0xFu) != 0u;
             uint32_t table = peek32(item + 0x10u);
             if (table == 0u && call.file != 0u)
-                table = kObjectSt;
+                table = addr::ObjectSt;
             for (uint32_t n = 0; n < count; ++n, e += 0x50u)
             {
                 vf[1] = loadVec(e);
@@ -3310,7 +3233,7 @@ namespace sc3
                     const uint32_t projection = peek32(view + 0x454u);
                     const Qword p = vecWords(point);
                     vf[18] = _mm_castsi128_ps(_mm_setr_epi32(static_cast<int32_t>(p[2]), 0, static_cast<int32_t>(p[3]), 0));
-                    vf[19] = loadVec(kObjectDepthClamp);
+                    vf[19] = loadVec(addr::ObjectDepthClamp);
                     vf[18] = put(vf[18], ps2_vsub(vf[18], lane(vf[3], 2)), 4u);
                     vf[21] = put(vf[21], ps2_vadd(vf[0], lane(vf[19], 3)), 4u);
                     vf[22] = loadVec(projection + 0x20u);
@@ -3410,7 +3333,7 @@ namespace sc3
                 (uploads != 0u && head == 0u && (peek8(file) == 2u || peek8(file) == 3u)))
             {
                 ++stats.toGs;
-                callOriginal(kObjects, rdram, ctx, runtime);
+                callOriginal(addr::Objects, rdram, ctx, runtime);
                 return;
             }
             const bool found = head == 0u   ? page(file, peek8(item + 0x18u), pageRegs, stats)
@@ -3419,7 +3342,7 @@ namespace sc3
             if (!found)
             {
                 ++stats.toGs;
-                callOriginal(kObjects, rdram, ctx, runtime);
+                callOriginal(addr::Objects, rdram, ctx, runtime);
                 return;
             }
             if (peek16(item + 8u) == 0u || peek32(item + 0xCu) == 0u)
@@ -3430,7 +3353,7 @@ namespace sc3
             Vu0 vu;
             loadVu0(vu, ctx);
             poke8(item + 0xBu, 2u);
-            poke32(kStripInsertion, peek32(kStripTable + (peek8(item + 0xAu) & 3u) * 4u));
+            poke32(addr::StripInsertion, peek32(addr::StripTable + (peek8(item + 0xAu) & 3u) * 4u));
             ObjectCall call;
             if (!objectBuild(rdram, ctx, runtime, item, vu, call, pageRegs))
             {
@@ -3476,15 +3399,10 @@ namespace sc3
         // over 0.08. Depth for the insertion: +0x38 over the z, or when +0x38 is not positive -(+0x38) (x 12.5 for mode 1).
         // +0x4A & 0x40 with +0x1F & 0x80 or *(*(0x469230) +0x50) (the display's aspect) picks the width correction.
 
-        constexpr uint32_t kScreenObjects = 0x001107E0u, kScreenSprites = 0x00110258u, kBillboards = 0x00112148u, kGifListAppend = 0x0010F808u;
-        constexpr uint32_t kScreenTex1 = 0x00467528u; // TEX1_2 by an entry's +0x4B (the item's +0x1D & 1)
-        constexpr uint32_t kDisplay = 0x00469230u;    // +0x50: the screen's aspect is not the game's
-        constexpr uint32_t kScreenSpriteAspect = 0x00467610u;
-
         // 0x10FD78: the colour cap, the view's +0x380 and a matrix in vf26 .. vf31, the 2D one (a3 = 1) or the 3D one (a3 = 0).
         void screenView(Vu0 &vu, uint32_t view, uint32_t slot)
         {
-            vu.vf[26] = loadVec(kStripColourMax);
+            vu.vf[26] = loadVec(addr::StripColourMax);
             vu.vf[27] = loadVec(view + 0x380u);
             const uint32_t matrix = peek32(view + slot);
             for (int i = 0; i < 4; ++i)
@@ -3507,7 +3425,7 @@ namespace sc3
             if (table != 0u || peek32(item + 0x14u) == 0u)
                 return table;
             scalePageSt(peek32(item + 0x14u), peek8(item + 0x18u));
-            return kObjectSt;
+            return addr::ObjectSt;
         }
 
         // 0x10FD78 / 0x10FE50's head fields of the call: ALPHA_2, TEXA, TEST_2 and the TEX1_2 A+D first.
@@ -3520,7 +3438,7 @@ namespace sc3
             call.tex1 = (peek8(item + 0x1Du) & 1u) != 0u;
             call.test = (peek8(item + 0x1Fu) & 0x40u) != 0u;
             call.mode = peek8(item + 0xAu);
-            call.insertion = peek32(kStripTable + (call.mode & 3u) * 4u);
+            call.insertion = peek32(addr::StripTable + (call.mode & 3u) * 4u);
             call.file = peek32(item + 0x14u);
             call.page = peek8(item + 0x18u);
         }
@@ -3537,7 +3455,7 @@ namespace sc3
                 return vecWords(ftoiVec(c, 1.0f));
             }
             const uint32_t rgba = peek32(e + 0x20u);
-            const uint32_t view = peek32(kView);
+            const uint32_t view = peek32(addr::View);
             Qword out;
             for (int i = 0; i < 4; ++i)
             {
@@ -3573,7 +3491,7 @@ namespace sc3
             uint32_t e = peek32(item + 0xCu);
             if (count == 0u || e == 0u)
                 return false;
-            const uint32_t view = peek32(kView);
+            const uint32_t view = peek32(addr::View);
             screenCall(item, call);
             uint32_t prim = 0x254u;
             if (peek8(item + 0x1Cu) == 1u)
@@ -3585,7 +3503,7 @@ namespace sc3
             for (int i = 10; i <= 13; ++i)
                 vf[i] = put(vf[i], ps2_vsub(vf[i], vf[i]), 8u);
             const bool wideFlag = (peek8(item + 0x1Fu) & 0x80u) != 0u;
-            const bool aspect = peek32(peek32(kDisplay) + 0x50u) != 0u;
+            const bool aspect = peek32(peek32(addr::ScreenMode) + 0x50u) != 0u;
             for (uint32_t n = 0; n < count; ++n, e += 0x50u)
             {
                 if (peek8(e + 0x4Cu) == 0u)
@@ -3618,7 +3536,7 @@ namespace sc3
                 screen = put(screen, ps2_vmul(screen, _mm_set1_ps(vu.q)), 4u);
                 ObjectSprite sprite;
                 if (call.tex1)
-                    sprite.tex1 = peek32(kScreenTex1 + peek8(e + 0x4Bu) * 4u);
+                    sprite.tex1 = peek32(addr::ScreenTex1 + peek8(e + 0x4Bu) * 4u);
                 sprite.colour = screenColour(vu, e, vf[24], false);
                 static constexpr int kOrder[4][4] = {{0, 1, 2, 3}, {1, 0, 3, 2}, {2, 3, 0, 1}, {3, 2, 1, 0}};
                 const uint32_t order = peek8(e + 0x4Du);
@@ -3631,15 +3549,15 @@ namespace sc3
                 uint32_t first, second;
                 sinCos(rdram, ctx, runtime, vu, peekFloat(e + 0x3Cu), first, second);
                 const uint8_t flags = peek8(e + 0x4Au);
-                uint32_t vec = 0x00467620u;
+                uint32_t vec = addr::ScreenVector;
                 float offset = 0.0f, scale = 1.0f;
                 if ((flags & 0x40u) != 0u && (aspect || wideFlag))
                 {
                     if (aspect && wideFlag)
-                        vec = 0x00467650u;
+                        vec = addr::ScreenVectorAspectWide;
                     else
                     {
-                        vec = aspect ? 0x00467640u : 0x00467630u;
+                        vec = aspect ? addr::ScreenVectorAspect : addr::ScreenVectorWide;
                         if ((flags & 0x80u) != 0u)
                         {
                             scale = wordFloat(aspect ? 0x3F4DB9CCu : 0x3F9F47ADu);
@@ -3691,13 +3609,13 @@ namespace sc3
         // corners) per entry, its size +0x30 / +0x34 times +0x40, its anchor by +0x4A >> 4 & 3; dropped off the GS's range.
         bool screenSpritesBuild(uint32_t item, Vu0 &vu, ObjectCall &call, const Page &pageRegs)
         {
-            if (static_cast<int32_t>(peek32(kRenderer + 0x2Cu) + peek32(kRenderer + 0x1Cu) + 0x64u) > 0x895C)
+            if (static_cast<int32_t>(peek32(addr::Renderer + 0x2Cu) + peek32(addr::Renderer + 0x1Cu) + 0x64u) > 0x895C)
                 return false;
             const uint32_t count = peek16(item + 8u);
             uint32_t e = peek32(item + 0xCu);
             if (count == 0u || e == 0u)
                 return false;
-            const uint32_t view = peek32(kView);
+            const uint32_t view = peek32(addr::View);
             screenCall(item, call);
             uint64_t prim = 0x95A0ull << 41;
             if (peek8(item + 0x1Cu) == 1u)
@@ -3707,7 +3625,7 @@ namespace sc3
             Vec *vf = vu.vf;
             screenView(vu, view, kView2dMatrix);
             const bool wideFlag = (peek8(item + 0x1Fu) & 0x80u) != 0u;
-            const bool aspect = peek32(peek32(kDisplay) + 0x50u) != 0u;
+            const bool aspect = peek32(peek32(addr::ScreenMode) + 0x50u) != 0u;
             const bool corrected = wideFlag ? !aspect : aspect;
             for (uint32_t n = 0; n < count; ++n, e += 0x50u)
             {
@@ -3729,7 +3647,7 @@ namespace sc3
                     uint32_t index = peek8(e + 0x4Bu);
                     if (fix && index == 1u)
                         index = 2u;
-                    sprite.tex1 = peek32(kScreenTex1 + index * 4u);
+                    sprite.tex1 = peek32(addr::ScreenTex1 + index * 4u);
                 }
                 const Vec p = put(loadVec(e), ps2_vadd(loadVec(e), loadVec(e + 0x10u)), 7u);
                 vf[4] = p;
@@ -3759,7 +3677,7 @@ namespace sc3
                 sprite.st[1] = stRow(rows + r[1] * 16u);
                 if (fix)
                 {
-                    const Vec a = loadVec(kScreenSpriteAspect);
+                    const Vec a = loadVec(addr::ScreenSpriteAspect);
                     const Vec factor = lane(a, wideFlag ? 3 : 2);
                     if ((flags & 0x80u) != 0u)
                         v3 = put(v3, ps2_vsub(v3, lane(a, 0)), 1u);
@@ -3809,13 +3727,13 @@ namespace sc3
         // +0x38, the depth Q times +0x38. Dropped off the GS's range.
         bool billboardsBuild(uint32_t item, Vu0 &vu, ObjectCall &call, const Page &pageRegs)
         {
-            if (static_cast<int32_t>(peek32(kRenderer + 0x2Cu) + peek32(kRenderer + 0x1Cu) + 0x64u) > 0x895C)
+            if (static_cast<int32_t>(peek32(addr::Renderer + 0x2Cu) + peek32(addr::Renderer + 0x1Cu) + 0x64u) > 0x895C)
                 return false;
             const uint32_t count = peek16(item + 8u);
             uint32_t e = peek32(item + 0xCu);
             if (count == 0u || e == 0u)
                 return false;
-            const uint32_t view = peek32(kView);
+            const uint32_t view = peek32(addr::View);
             screenCall(item, call);
             uint64_t prim = 0x95A0ull << 41;
             if (peek8(item + 0x1Cu) == 1u)
@@ -3833,7 +3751,7 @@ namespace sc3
                     continue;
                 ObjectSprite sprite;
                 if (call.tex1)
-                    sprite.tex1 = peek32(kScreenTex1 + peek8(e + 0x4Bu) * 4u);
+                    sprite.tex1 = peek32(addr::ScreenTex1 + peek8(e + 0x4Bu) * 4u);
                 const Vec p = put(loadVec(e), ps2_vadd(loadVec(e), loadVec(e + 0x10u)), 7u);
                 vf[4] = p;
                 Vec acc = ps2_vmul(vf[28], lane(p, 0));
@@ -3996,10 +3914,10 @@ namespace sc3
             ++stats.calls;
             const uint32_t item = getRegU32(ctx, 4);
             const uint32_t uploads = peek8(item + 0x1Au), head = peek8(item + 0x1Cu);
-            const bool sprites = address != kScreenObjects;
+            const bool sprites = address != addr::ScreenObjects;
             ++forms[(uploads << 24) | (head << 16) | (peek8(item + 0x1Du) << 8) | peek8(item + 0x1Fu)];
             relocateItemFile(item, rdram, ctx, runtime);
-            if (address == kBillboards && (peek16(item + 8u) == 0u || peek32(item + 0xCu) == 0u))
+            if (address == addr::Billboards && (peek16(item + 8u) == 0u || peek32(item + 0xCu) == 0u))
             {
                 ++stats.native;
                 ctx->pc = getRegU32(ctx, 31);
@@ -4031,7 +3949,7 @@ namespace sc3
             if (!sprites && peek16(item + 8u) != 0u && peek32(item + 0xCu) != 0u)
                 poke8(item + 0xBu, 2u);
             if (built)
-                poke32(kStripInsertion, call.insertion);
+                poke32(addr::StripInsertion, call.insertion);
             GsMaterial m = spriteMaterial(pageRegs, head == 1u ? pageRegs.alpha : call.alpha);
             m.prim = decodePrim(static_cast<uint32_t>(call.tag >> 47) & 0x7FFu);
             if (!sprites)
@@ -4076,19 +3994,19 @@ namespace sc3
 
         void screenObjectsDraw(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
-            screenItemDraw(kScreenObjects, screenObjectsBuild, screenObjectWords, "screen objects", g_state.screenObjects,
+            screenItemDraw(addr::ScreenObjects, screenObjectsBuild, screenObjectWords, "screen objects", g_state.screenObjects,
                            g_state.screenObjectForms, rdram, ctx, runtime);
         }
 
         void screenSpritesDraw(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
-            screenItemDraw(kScreenSprites, screenSpritesBuildHook, screenSpriteWords, "screen sprites", g_state.screenSprites,
+            screenItemDraw(addr::ScreenSprites, screenSpritesBuildHook, screenSpriteWords, "screen sprites", g_state.screenSprites,
                            g_state.screenSpriteForms, rdram, ctx, runtime);
         }
 
         void billboardsDraw(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
-            screenItemDraw(kBillboards, billboardsBuildHook, billboardWords, "billboards", g_state.billboards, g_state.billboardForms, rdram,
+            screenItemDraw(addr::Billboards, billboardsBuildHook, billboardWords, "billboards", g_state.billboards, g_state.billboardForms, rdram,
                            ctx, runtime);
         }
 
@@ -4146,7 +4064,7 @@ namespace sc3
         void gameStart(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
             prepare(rdram, runtime);
-            _start_0x100008(rdram, ctx, runtime);
+            fn::GameStart(rdram, ctx, runtime);
         }
 
         template <void (*Hook)(uint8_t *, R5900Context *, PS2Runtime *)>
@@ -4258,31 +4176,31 @@ namespace sc3
             std::fprintf(stderr, "[sc3:2d] %s: no leaves\n", leaves.c_str());
             return;
         }
-        runtime.registerFunction(kGameStart, &gameStart);
-        runtime.registerFunction(kLabels, &hooked<labels>);
-        runtime.registerFunction(kTriangle, &hooked<triangle>);
-        runtime.registerFunction(kText, &hooked<text>);
-        runtime.registerFunction(kQuad, &hooked<quad>);
-        runtime.registerFunction(kLine, &hooked<line>);
-        runtime.registerFunction(kShadedLine, &hooked<shadedLine>);
-        runtime.registerFunction(kIcon, &hooked<icon>);
-        runtime.registerFunction(kEffectLayer, &hooked<screenEffectLayer>);
-        runtime.registerFunction(kEffectInline, &hooked<screenEffectInline>);
-        runtime.registerFunction(kStrips, &hooked<strips>);
-        runtime.registerFunction(kScreenStrips, &hooked<screenStrips>);
-        runtime.registerFunction(kPageCopy, &hooked<pageCopy>);
-        runtime.registerFunction(kPageCopyClut, &hooked<pageCopy>);
-        runtime.registerFunction(kPageCopyCbp, &hooked<pageCopy>);
-        runtime.registerFunction(kObjects, &hooked<objects>);
-        runtime.registerFunction(kScreenObjects, &hooked<screenObjects>);
-        runtime.registerFunction(kScreenSprites, &hooked<screenSprites>);
-        runtime.registerFunction(kBillboards, &hooked<billboards>);
-        runtime.registerFunction(kFontUpload, &hooked<upload>);
-        runtime.registerFunction(kLabelsUpload, &hooked<upload>);
-        runtime.registerFunction(kIconsUpload, &hooked<upload>);
-        runtime.registerFunction(kUploadItem, &hooked<uploadItem>);
-        runtime.registerFunction(kMovieCopy, &hooked<movieCopy>);
-        runtime.registerFunction(kFilePixels, &hooked<filePixels>);
+        runtime.registerFunction(addr::GameStart, &gameStart);
+        runtime.registerFunction(addr::Labels, &hooked<labels>);
+        runtime.registerFunction(addr::Triangle, &hooked<triangle>);
+        runtime.registerFunction(addr::Text, &hooked<text>);
+        runtime.registerFunction(addr::Quad, &hooked<quad>);
+        runtime.registerFunction(addr::Line, &hooked<line>);
+        runtime.registerFunction(addr::ShadedLine, &hooked<shadedLine>);
+        runtime.registerFunction(addr::Icon, &hooked<icon>);
+        runtime.registerFunction(addr::EffectLayer, &hooked<screenEffectLayer>);
+        runtime.registerFunction(addr::EffectInline, &hooked<screenEffectInline>);
+        runtime.registerFunction(addr::Strips, &hooked<strips>);
+        runtime.registerFunction(addr::ScreenStrips, &hooked<screenStrips>);
+        runtime.registerFunction(addr::PageCopy, &hooked<pageCopy>);
+        runtime.registerFunction(addr::PageCopyClut, &hooked<pageCopy>);
+        runtime.registerFunction(addr::PageCopyCbp, &hooked<pageCopy>);
+        runtime.registerFunction(addr::Objects, &hooked<objects>);
+        runtime.registerFunction(addr::ScreenObjects, &hooked<screenObjects>);
+        runtime.registerFunction(addr::ScreenSprites, &hooked<screenSprites>);
+        runtime.registerFunction(addr::Billboards, &hooked<billboards>);
+        runtime.registerFunction(addr::FontUpload, &hooked<upload>);
+        runtime.registerFunction(addr::LabelsUpload, &hooked<upload>);
+        runtime.registerFunction(addr::IconsUpload, &hooked<upload>);
+        runtime.registerFunction(addr::UploadItem, &hooked<uploadItem>);
+        runtime.registerFunction(addr::MovieCopy, &hooked<movieCopy>);
+        runtime.registerFunction(addr::FilePixels, &hooked<filePixels>);
         s.ready = true;
         std::fprintf(stderr, "[sc3:2d] native 2D: %s, %zu leaves with texture pages\n", path, s.pack.files().size());
     }
