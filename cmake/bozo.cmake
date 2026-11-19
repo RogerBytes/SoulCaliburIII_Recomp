@@ -17,8 +17,8 @@
 # recomp/sc3_stubs.txt, SC3's override list (scripts/sc3_overrides_list.py, from bozo/port/*.cpp) and the symbol map
 # SC3_SYMBOL_MAP (default recomp/sc3_symbols.txt, once BOZO_ENGINE_DIR's engine reads symbol maps).
 #
-# SC3_REGION, from SC3_ELF's SHA-1 by default: NTSC (SLUS_212.16) or PAL (SCES_533.12). The port names SLUS_212.16's
-# addresses; a PAL build places them with recomp/pal/address_map.txt (sc3_region.h) and takes recomp/pal/'s inputs.
+# SC3_REGION, from SC3_ELF's SHA-1 by default: NTSC (SLUS_212.16) or PAL (SCES_533.12). The port names the game's
+# addresses (bozo/port/sc3_addresses.txt, one column a disc; sc3_region.h); a PAL build takes recomp/pal/'s inputs.
 
 set(BOZO_ENGINE_DIR "" CACHE PATH "BozoEngine's source tree (default: the BozoEngine submodule)")
 if(NOT BOZO_ENGINE_DIR AND EXISTS "${CMAKE_SOURCE_DIR}/BozoEngine/CMakeLists.txt")
@@ -57,14 +57,12 @@ if(sc3_region STREQUAL "PAL")
     set(sc3_recomp_dir "${CMAKE_SOURCE_DIR}/recomp/pal")
     set(sc3_title "Soulcalibur III (Europe, Australia)")
     set(sc3_boot SCES_533.12)
-    set(sc3_region_args --map "${sc3_recomp_dir}/address_map.txt" --reviewed "${sc3_recomp_dir}/address_reviewed.txt")
-    set(sc3_region_inputs "${sc3_recomp_dir}/address_map.txt" "${sc3_recomp_dir}/address_reviewed.txt")
+    set(sc3_column pal)
 elseif(sc3_region STREQUAL "NTSC")
     set(sc3_recomp_dir "${CMAKE_SOURCE_DIR}/recomp")
     set(sc3_title "Soulcalibur III (USA)")
     set(sc3_boot SLUS_212.16)
-    set(sc3_region_args)
-    set(sc3_region_inputs)
+    set(sc3_column ntsc)
 else()
     message(FATAL_ERROR "SC3: SC3_REGION is NTSC or PAL, not ${sc3_region}")
 endif()
@@ -114,21 +112,22 @@ file(GLOB SC3_PORT_SOURCES CONFIGURE_DEPENDS "${port_dir}/*.cpp")
 add_custom_command(
     OUTPUT ${overrides_list}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${gen_dir}
-    COMMAND Python3::Interpreter "${CMAKE_SOURCE_DIR}/scripts/sc3_overrides_list.py" "${port_dir}" ${overrides_list} ${sc3_region_args}
-    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_overrides_list.py" "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" ${SC3_PORT_SOURCES} ${sc3_region_inputs}
+    COMMAND Python3::Interpreter "${CMAKE_SOURCE_DIR}/scripts/sc3_overrides_list.py" "${port_dir}" ${overrides_list} --column ${sc3_column}
+    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_overrides_list.py" "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" ${SC3_PORT_SOURCES} "${port_dir}/sc3_addresses.txt"
     COMMENT "Listing SC3's overrides")
 set(sc3_header_symbols)
 if(SC3_SYMBOL_MAP)
     set(sc3_header_symbols --symbols "${SC3_SYMBOL_MAP}")
 endif()
-file(GLOB_RECURSE sc3_at_sources CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/bozo/*.cpp" "${CMAKE_SOURCE_DIR}/bozo/*.h")
+file(GLOB_RECURSE sc3_named_sources CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/bozo/*.cpp" "${CMAKE_SOURCE_DIR}/bozo/*.h")
 add_custom_command(
     OUTPUT ${gen_dir}/sc3_region.h
     COMMAND ${CMAKE_COMMAND} -E make_directory ${gen_dir}
     COMMAND Python3::Interpreter "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" header ${gen_dir}/sc3_region.h
-            --title "${sc3_title}" --elf ${sc3_boot} ${sc3_region_args} ${sc3_header_symbols} --sources "${CMAKE_SOURCE_DIR}/bozo"
-    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" ${sc3_at_sources} ${sc3_region_inputs} ${SC3_SYMBOL_MAP}
-    COMMENT "Placing SC3's addresses in ${sc3_boot}"
+            --title "${sc3_title}" --elf ${sc3_boot} --table "${port_dir}/sc3_addresses.txt" --column ${sc3_column}
+            ${sc3_header_symbols} --sources "${CMAKE_SOURCE_DIR}/bozo"
+    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" ${sc3_named_sources} "${port_dir}/sc3_addresses.txt" ${SC3_SYMBOL_MAP}
+    COMMENT "SC3's addresses in ${sc3_boot}"
     VERBATIM)
 add_custom_target(sc3_region DEPENDS ${gen_dir}/sc3_region.h)
 set(externals_args --overrides ${overrides_list} --stubs "${CMAKE_SOURCE_DIR}/recomp/sc3_stubs.txt")
@@ -281,7 +280,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E make_directory ${pack_dir}
     COMMAND ${pack_env} ${Python3_EXECUTABLE} -I "${CMAKE_SOURCE_DIR}/scripts/sc3_2d_pack.py" "${SC3_DISC_DIR}" ${pack_dir}/sc3_2d.pack
     DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_2d_pack.py" "${CMAKE_SOURCE_DIR}/scripts/sc3_texture_pack.py" "${CMAKE_SOURCE_DIR}/scripts/sc3_mesh_pack.py"
-            "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" "${CMAKE_SOURCE_DIR}/recomp/pal/address_map.txt" ${sc3_pack_disc}
+            "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" "${CMAKE_SOURCE_DIR}/bozo/port/sc3_addresses.txt" ${sc3_pack_disc}
     COMMENT "Building the 2D pack from the disc")
 add_custom_target(sc3_packs DEPENDS ${pack_dir}/sc3_textures.pack ${pack_dir}/sc3_meshes.pack ${pack_dir}/sc3_2d.pack)
 

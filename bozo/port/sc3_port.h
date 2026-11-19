@@ -1,5 +1,6 @@
 // SC3's port on BozoEngine: what every port file includes. The context helpers (bozo/context.h), the generated
-// functions by name (sc3_functions.h, made by bozo-recomp from SLUS_212.16 with SC3's externals) and the port API
+// functions by name (sc3_functions.h, made by bozo-recomp from the disc's ELF with SC3's externals), the game's
+// addresses for that disc (sc3_region.h: sc3::addr and sc3::fn, from sc3_addresses.txt) and the port API
 // (bozo/port.h). Each subsystem registers its overrides from its own install(), called by applySc3 (sc3_port.cpp).
 #pragma once
 
@@ -17,21 +18,6 @@ using PS2Runtime = Runtime;
 namespace sc3
 {
     using Registry = bozo::port::Registry;
-
-    // An address of SLUS_212.16, where it lives in the executable this build is for (sc3_region.h, made by
-    // scripts/sc3_region_map.py header from every at() of bozo/).
-    consteval uint32_t at(uint32_t ntsc)
-    {
-        if (!region::kMoved)
-            return ntsc;
-        for (const region::Placed &placed : region::kPlaced)
-            if (placed.ntsc == ntsc)
-                return placed.here;
-        throw "sc3::at: an address sc3_region.h does not place";
-    }
-    // The generated function at a SLUS_212.16 function's address, in the executable this build is for.
-    template <uint32_t ntsc>
-    inline constexpr GuestFunction recompiled = Guest<ntsc>::function;
 
     constexpr uint32_t kEntry = 0x100008u;
 

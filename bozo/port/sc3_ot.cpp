@@ -20,9 +20,6 @@ namespace sc3::ot
 {
     namespace
     {
-        constexpr uint32_t kRenderer = at(0x005BE700u); // +0 frame not built, +0x38 frame being built, +0x50 the layer's table, +0x54 the table, +0x62 layers, +0x64 buckets a layer, +0x80 the frame the kick sends
-        constexpr uint32_t kSyncPoint = at(0x0010F9D0u);
-        constexpr uint32_t kSetLayer = at(0x0010D718u);
         constexpr uint32_t kBuckets = 0x2000u;
 
         uint32_t word(const uint8_t *rdram, uint32_t address)
@@ -58,7 +55,7 @@ namespace sc3::ot
 
         struct FrameMirror
         {
-            List gif, vif[2]; // the VIF1 list by 0x10EA38's selector (kRenderer + 0x8C): 0 is played before 1
+            List gif, vif[2]; // the VIF1 list by 0x10EA38's selector (addr::Renderer + 0x8C): 0 is played before 1
             std::vector<std::vector<Draw>> buckets = std::vector<std::vector<Draw>>(kBuckets);
             std::vector<uint32_t> usedBuckets;
             uint64_t draws = 0;
@@ -71,9 +68,9 @@ namespace sc3::ot
             uint64_t kicks = 0, drawsSinceReport = 0, batchesSinceReport = 0, emptyKicks = 0;
         } g_state;
 
-        uint32_t selectedVif(const uint8_t *rdram) { return word(rdram, kRenderer + 0x8Cu) & 1u; }
+        uint32_t selectedVif(const uint8_t *rdram) { return word(rdram, addr::Renderer + 0x8Cu) & 1u; }
 
-        FrameMirror &building(const uint8_t *rdram) { return g_state.frames[word(rdram, kRenderer + 0x38u) & 1u]; }
+        FrameMirror &building(const uint8_t *rdram) { return g_state.frames[word(rdram, addr::Renderer + 0x38u) & 1u]; }
 
         bozo::render::Screen screen()
         {
@@ -94,7 +91,7 @@ namespace sc3::ot
                 ++frame.gif.current;
             else if (channel == 2u)
                 ++frame.vif[selectedVif(rdram)].current;
-            recompiled<0x10f9d0u>(rdram, ctx, runtime);
+            fn::SyncPoint(rdram, ctx, runtime);
         }
 
         // 0x10D718 (n > 0, &head, &tail): the table's layer before n, entered from the list by a NEXT the caller appends.
@@ -103,15 +100,15 @@ namespace sc3::ot
             const int32_t n = getRegS32(ctx, 4);
             if (n > 0 && getRegU32(ctx, 5) != 0u && getRegU32(ctx, 6) != 0u)
             {
-                const int32_t layers = static_cast<int16_t>(word(rdram, kRenderer + 0x60u) >> 16);
-                const int32_t each = static_cast<int32_t>(word(rdram, kRenderer + 0x64u));
+                const int32_t layers = static_cast<int16_t>(word(rdram, addr::Renderer + 0x60u) >> 16);
+                const int32_t each = static_cast<int32_t>(word(rdram, addr::Renderer + 0x64u));
                 const int32_t place = n < layers ? n : layers - 1;
                 ListEntry entry;
                 entry.layerFirst = (place - 1) * each;
                 entry.layerEnd = place * each;
                 building(rdram).gif.add(std::move(entry));
             }
-            recompiled<0x10d718u>(rdram, ctx, runtime);
+            fn::SetLayer(rdram, ctx, runtime);
         }
 
         void drawBuckets(FrameMirror &frame, bozo::render::Renderer &renderer, uint32_t first, uint32_t end)
@@ -168,7 +165,7 @@ namespace sc3::ot
 
     bool linkBucket(uint8_t *rdram, int bucket, Draw draw)
     {
-        if (word(rdram, kRenderer) != 0u)
+        if (word(rdram, addr::Renderer) != 0u)
             return false;
         bucket = bucket < 0 ? 0 : bucket >= 0x1FFF ? 0x1FFE : bucket;
         building(rdram).buckets[static_cast<uint32_t>(bucket)].push_back(std::move(draw));
@@ -177,9 +174,9 @@ namespace sc3::ot
 
     bool linkLayerBucket(uint8_t *rdram, int bucket, Draw draw)
     {
-        if (word(rdram, kRenderer) != 0u)
+        if (word(rdram, addr::Renderer) != 0u)
             return false;
-        const int64_t base = (static_cast<int64_t>(word(rdram, kRenderer + 0x50u)) - word(rdram, kRenderer + 0x54u)) / 16;
+        const int64_t base = (static_cast<int64_t>(word(rdram, addr::Renderer + 0x50u)) - word(rdram, addr::Renderer + 0x54u)) / 16;
         const int64_t place = base + bucket;
         if (bucket < 0 || place < 0 || place >= kBuckets)
             return false;
@@ -189,7 +186,7 @@ namespace sc3::ot
 
     bool appendGif(uint8_t *rdram, Draw draw)
     {
-        if (word(rdram, kRenderer) != 0u)
+        if (word(rdram, addr::Renderer) != 0u)
             return false;
         ListEntry entry;
         entry.draw = std::move(draw);
@@ -199,7 +196,7 @@ namespace sc3::ot
 
     bool appendVif(uint8_t *rdram, Draw draw)
     {
-        if (word(rdram, kRenderer) != 0u)
+        if (word(rdram, addr::Renderer) != 0u)
             return false;
         ListEntry entry;
         entry.draw = std::move(draw);
@@ -221,7 +218,7 @@ namespace sc3::ot
 
     void dropFrame(uint8_t *rdram)
     {
-        FrameMirror &frame = g_state.frames[(word(rdram, kRenderer + 0x80u) & 0xFFFFu) & 1u];
+        FrameMirror &frame = g_state.frames[(word(rdram, addr::Renderer + 0x80u) & 0xFFFFu) & 1u];
         frame.gif.reset();
         frame.vif[0].reset();
         frame.vif[1].reset();
@@ -291,7 +288,7 @@ namespace sc3::ot
             renderer.setPresentsAlone(true);
             renderer.beginFrame(screen());
         }
-        FrameMirror &frame = s.frames[(word(rdram, kRenderer + 0x80u) & 0xFFFFu) & 1u];
+        FrameMirror &frame = s.frames[(word(rdram, addr::Renderer + 0x80u) & 0xFFFFu) & 1u];
         frame.draws = 0;
         meshes::frameStart();
         walk(frame, renderer);
@@ -344,7 +341,7 @@ namespace sc3::ot
     {
         loads::install(runtime);
         offscreen::install(runtime);
-        runtime.registerFunction(kSyncPoint, &syncPoint);
-        runtime.registerFunction(kSetLayer, &setLayer);
+        runtime.registerFunction(addr::SyncPoint, &syncPoint);
+        runtime.registerFunction(addr::SetLayer, &setLayer);
     }
 }

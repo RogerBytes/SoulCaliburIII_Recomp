@@ -13,14 +13,6 @@ namespace sc3::clock
 
     namespace
     {
-        constexpr uint32_t kLines = at(0x0012D0D8u);
-        constexpr uint32_t kFrameClock = at(0x0012D0E8u);
-        constexpr uint32_t kFrameClockRestart = at(0x0010E910u);
-        constexpr uint32_t kFrameClockSet = at(0x0010E920u);
-        constexpr uint32_t kLinesSinceMark = at(0x001480D0u);
-
-        constexpr uint32_t kLineMarks = at(0x00469234u);
-        constexpr uint32_t kFrameClockHigh = at(0x00469248u);
         constexpr uint32_t kCountMask = 0xFFFFu;
         constexpr uint64_t kFrameClockTick = 512u;
 
@@ -39,7 +31,7 @@ namespace sc3::clock
         uint32_t since(const uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime, uint32_t mark)
         {
             uint16_t from;
-            std::memcpy(&from, rdram + word(rdram, kLineMarks) + mark, 2);
+            std::memcpy(&from, rdram + word(rdram, addr::LineMarks) + mark, 2);
             const uint32_t count = lines(runtime, ctx);
             return count < from ? count + 0x10000u - from : count - from;
         }
@@ -56,7 +48,7 @@ namespace sc3::clock
             if (count == g_lastCount)
                 bozo::port::accountCycles(runtime, ctx, kFrameClockTick);
             g_lastCount = count;
-            setReturnU32(ctx, word(rdram, kFrameClockHigh) | count);
+            setReturnU32(ctx, word(rdram, addr::FrameClockHigh) | count);
             ctx->pc = getRegU32(ctx, 31);
         }
 
@@ -116,10 +108,10 @@ namespace sc3::clock
 
     void install(Registry &runtime)
     {
-        runtime.registerFunction(kLines, &linesCall);
-        runtime.registerFunction(kFrameClock, &frameClock);
-        runtime.registerFunction(kFrameClockRestart, &frameClockRestart);
-        runtime.registerFunction(kFrameClockSet, &frameClockSet);
-        runtime.registerFunction(kLinesSinceMark, &linesSinceMark);
+        runtime.registerFunction(addr::Lines, &linesCall);
+        runtime.registerFunction(addr::FrameClock, &frameClock);
+        runtime.registerFunction(addr::FrameClockRestart, &frameClockRestart);
+        runtime.registerFunction(addr::FrameClockSet, &frameClockSet);
+        runtime.registerFunction(addr::LinesSinceMark, &linesSinceMark);
     }
 }

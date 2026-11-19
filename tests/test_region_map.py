@@ -147,53 +147,71 @@ class RegionMapTest(unittest.TestCase):
         self.assertEqual(out.read_text().splitlines()[1:],
                          ['# REVIEW 0x10002c 0x%08x 0x%08x: the jump target has no place' % (sw(0, 0, V1), jal(0x120010))])
 
-    def write_port(self, text):
-        port = self.folder / 'port'
-        port.mkdir(exist_ok=True)
-        (port / 'a.cpp').write_text(text)
-        return port
+    def write_table(self, text):
+        table = self.folder / 'sc3_addresses.txt'
+        table.write_text('# name ntsc pal\n' + text)
+        return table
 
-    def run_header(self, *args):
-        out = self.folder / 'sc3_region.h'
+    def call(self, command, *args):
         with redirect_stdout(StringIO()) as printed:
-            code = region.header([str(out), '--title', 'T', '--elf', 'E', *map(str, args)])
-        return code, out.read_text() if out.exists() else '', printed.getvalue()
+            code = command([str(a) for a in args])
+        return code, printed.getvalue()
 
-    def test_header_places_what_the_port_names(self):
-        port = self.write_port('constexpr uint32_t kA = at(0x100028u), kB = at(0x110008u);\nrecompiled<0x100028u>(r, c, t);\n')
-        reviewed, symbols = self.folder / 'reviewed.txt', self.folder / 'symbols.txt'
-        reviewed.write_text('')
-        symbols.write_text('f2 0x10002c\n')
-        code, text, _ = self.run_header('--symbols', symbols, '--map', self.map, '--reviewed', reviewed, '--sources', port)
-        self.assertEqual(code, 0)
-        self.assertIn('{0x00100028u, 0x0010002Cu},', text)
-        self.assertIn('{0x00110008u, 0x00110018u},', text)
-        self.assertIn('kMoved = true;', text)
-        self.assertIn('struct Guest<0x100028u>\n    {\n        static constexpr GuestFunction function = &::f2_0x10002c;', text)
+    def test_addresses_fill_the_pal_column_from_the_map(self):
+        table = self.write_table('F2 0x00100028 -  # a note\nData[] 0x00110000 -\nData[] 0x00110008 0x00000001\n')
+        self.assertEqual(self.call(region.addresses, table, self.map)[0], 1)
+        self.assertEqual(self.call(region.addresses, table, self.map, '--write')[0], 0)
+        self.assertEqual(table.read_text().splitlines()[1:], ['F2     0x00100028 0x0010002C  # a note',
+                                                              'Data[] 0x00110000 0x00110010',
+                                                              'Data[] 0x00110008 0x00110018'])
+        self.assertEqual(self.call(region.addresses, table, self.map)[0], 0)
 
-    def test_header_refuses_an_unreviewed_address_in_a_changed_function(self):
-        port = self.write_port('constexpr uint32_t kA = at(0x10001Cu);\n')
-        reviewed = self.folder / 'reviewed.txt'
-        reviewed.write_text('')
-        code, _, printed = self.run_header('--map', self.map, '--reviewed', reviewed, '--sources', port)
+    def test_addresses_refuse_an_unreviewed_row_in_a_changed_function(self):
+        table = self.write_table('Inside 0x0010001C -\n')
+        code, printed = self.call(region.addresses, table, self.map, '--write')
         self.assertEqual(code, 1)
-        self.assertIn('0x10001c: inside 0x100018-0x100028, which changed', printed)
-        reviewed.write_text('0x10001c 0x100020  # read\n')
-        code, text, _ = self.run_header('--map', self.map, '--reviewed', reviewed, '--sources', port)
-        self.assertEqual(code, 0)
-        self.assertIn('{0x0010001Cu, 0x00100020u},', text)
+        self.assertIn('Inside 0x10001c: inside 0x100018-0x100028, which changed', printed)
+        table = self.write_table('Inside 0x0010001C 0x00100020 reviewed  # read\n')
+        self.assertEqual(self.call(region.addresses, table, self.map)[0], 0)
 
-    def test_header_without_a_map_keeps_the_addresses(self):
-        port = self.write_port('recompiled<0x100028u>(r, c, t);\n')
-        code, text, _ = self.run_header('--sources', port)
-        self.assertEqual(code, 0)
-        self.assertIn('kMoved = false;', text)
-        self.assertIn('&::func_0x100028;', text)
+    def test_header_names_the_columns_addresses_and_the_calls(self):
+        table = self.write_table('F2 0x00100028 0x0010002C\nData[] 0x00110000 0x00110010\nData[] 0x00110008 0x00110018\n')
+        port = self.folder / 'port'
+        port.mkdir()
+        (port / 'a.cpp').write_text('fn::F2(r, c, t);\n')
+        symbols = self.folder / 'symbols.txt'
+        symbols.write_text('f2 0x10002c\n')
+        out = self.folder / 'sc3_region.h'
+        for column, expected in (('ntsc', ('F2 = 0x00100028u;', 'Data[] = {0x00110000u, 0x00110008u};', '&::func_0x100028;')),
+                                 ('pal', ('F2 = 0x0010002Cu;', 'Data[] = {0x00110010u, 0x00110018u};', '&::f2_0x10002c;'))):
+            code, _ = self.call(region.header, out, '--title', 'T', '--elf', 'E', '--table', table, '--column', column,
+                               '--symbols', symbols, '--sources', port)
+            self.assertEqual(code, 0)
+            text = out.read_text()
+            for line in expected:
+                self.assertIn(line, text)
+
+    def test_header_refuses_a_call_the_table_does_not_name(self):
+        table = self.write_table('F2 0x00100028 0x0010002C\n')
+        port = self.folder / 'port'
+        port.mkdir()
+        (port / 'a.cpp').write_text('fn::Other(r, c, t);\n')
+        code, printed = self.call(region.header, self.folder / 'h.h', '--title', 'T', '--elf', 'E', '--table', table,
+                                 '--sources', port)
+        self.assertEqual(code, 1)
+        self.assertIn('fn::Other: no such address', printed)
 
     def test_vote_drops_a_stray_offset(self):
         pairs = [(0x120000, 0x120020), (0x120008, 0x120028), (0x120008, 0x120028), (0x120008, 0x130028),
                  (0x120040, 0x110040), (0x120080, 0x1200A0)]
         self.assertEqual(region.vote(pairs, 'bss', 0x20), [('bss', 0x120000, 0x120084, 0x20)])
+
+
+class CommittedTableTest(unittest.TestCase):
+    def test_the_pal_column_is_the_maps(self):
+        with redirect_stdout(StringIO()) as printed:
+            code = region.addresses([str(ROOT / 'bozo/port/sc3_addresses.txt'), str(ROOT / 'recomp/pal/address_map.txt')])
+        self.assertEqual(code, 0, printed.getvalue())
 
 
 if __name__ == '__main__':

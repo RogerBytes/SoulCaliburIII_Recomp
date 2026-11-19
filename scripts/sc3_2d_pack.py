@@ -21,8 +21,8 @@ An indexed page's other colours: the game may draw it with another CLUT the file
 text renderer's colours are the font's 16 CLUTs); each CLUT block the file's lists write besides the page's own gets
 a CT32 palette record of the page's size, named in the block as register 0x103 = CBP << 32 | record.
 
-Texture files inside the game's ELF (SLUS_212.16 in the disc dir: the font at 0x4763B0, the menu icons at 0x4AF170 and
-nine more; SCES_533.12 has them where recomp/pal/address_map.txt places them) are converted as well, named elf/<address>, as the game has them before 0x118E18 relocates their pointers,
+Texture files inside the game's ELF (SLUS_212.16 or SCES_533.12 in the disc dir: the font, the menu icons and nine more,
+bozo/port/sc3_addresses.txt's ElfTextures in that disc's column) are converted as well, named elf/<address>, as the game has them before 0x118E18 relocates their pointers,
 each up to the end of its tables and of the data its upload lists reach (at most the next one's start).
 
 Beside it, <out>.leaves: one line per pack file, its name, the leaf's byte offset in ROOT.OLK and its size (hex).
@@ -52,9 +52,8 @@ TEXELS_REG = 0x101
 PALETTE_REG = 0x102
 CLUT_REG = 0x103
 NO_RECORD = 0xFFFFFFFF
-ELF_NAME = 'SLUS_212.16'
-PAL_ELF_NAME, PAL_MAP = 'SCES_533.12', os.path.join(HERE, '..', 'recomp', 'pal', 'address_map.txt')
-ELF_FILES = [0x473E60, 0x4742D0, 0x474630, 0x4749E0, 0x474DF0, 0x475200, 0x475610, 0x475970, 0x475DE0, 0x4763B0, 0x4AF170]
+ELF_COLUMNS = {'SLUS_212.16': 'ntsc', 'SCES_533.12': 'pal'}
+ADDRESSES = os.path.join(HERE, '..', 'bozo', 'port', 'sc3_addresses.txt')
 
 
 def clut_uploads(data):
@@ -190,15 +189,10 @@ def elf_image(path, address, size, partial=False):
 
 def elf_files(disc):
     """The disc's ELF and its texture files' addresses, or (None, [])."""
-    if os.path.exists(os.path.join(disc, ELF_NAME)):
-        return os.path.join(disc, ELF_NAME), ELF_FILES
-    if os.path.exists(os.path.join(disc, PAL_ELF_NAME)):
-        import sc3_region_map
-        places = sc3_region_map.Map(PAL_MAP)
-        addresses = [places.translate(a) for a in ELF_FILES]
-        if None in addresses:
-            raise SystemExit('%s places no %#x in %s' % (PAL_MAP, ELF_FILES[addresses.index(None)], PAL_ELF_NAME))
-        return os.path.join(disc, PAL_ELF_NAME), addresses
+    for name, column in ELF_COLUMNS.items():
+        if os.path.exists(os.path.join(disc, name)):
+            import sc3_region_map
+            return os.path.join(disc, name), sc3_region_map.Addresses(ADDRESSES).values(column)['ElfTextures']
     return None, []
 
 

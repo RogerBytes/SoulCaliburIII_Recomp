@@ -135,7 +135,7 @@ int main(int argc, char **argv)
         {
             const uint8_t *ram = d.runtime().memory.ram();
             uint32_t counter;
-            std::memcpy(&counter, ram + sc3::at(0x46E608u), 4);
+            std::memcpy(&counter, ram + sc3::addr::FrameNumber, 4);
             if (counter >= dumpAt[nextDump])
             {
                 const std::string path = dumpDir + "/ram_" + std::to_string(dumpAt[nextDump]) + ".bin";
