@@ -26,6 +26,10 @@ native PC services. There is no GS, VIF, VU, DMAC, IOP or SPU2 model in the buil
 > |---|---|
 > | `SLUS_212.16` | `9bbb67a70137052931bc245855eedeee6bbe5b49` |
 > | `SCES_533.12` | `8c79c1db3395e72ada118860433de6638ccf9401` |
+>
+> This fork also accepts **Resurrected Arcade Edition v0.2** (PAL), a mod of `SCES-53312` whose executable keeps the
+> same layout (815 bytes changed in place, no function moved): `SCES_533.12` SHA-1
+> `7a28609667a1b027cc5fb65416d3da12bde9fe4a`, built with the European disc's tables.
 
 ## Status
 

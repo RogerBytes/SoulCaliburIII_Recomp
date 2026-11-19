@@ -88,6 +88,20 @@ RELEASES = {
     'SCES_533.12': ('8c79c1db3395e72ada118860433de6638ccf9401', 'European disc (SCES-53312)', os.path.join('recomp', 'pal')),
 }
 SUPPORTED = 'the USA disc (SLUS-21216) or the European disc (SCES-53312)'
+# Modded discs built like their base release: same layout (no function moved), so the base's address table, symbol
+# map and patches apply. Only bytes changed in place; checked with a byte diff against the base ELF.
+VARIANTS = {
+    'SCES_533.12': {
+        '7a28609667a1b027cc5fb65416d3da12bde9fe4a': 'Resurrected Arcade Edition v0.2 (mod of SCES-53312)',
+    },
+}
+
+
+def accepted(boot, digest):
+    """The release digest names, or None: the base disc or one of its modded variants."""
+    if digest == RELEASES[boot][0]:
+        return RELEASES[boot][1]
+    return VARIANTS.get(boot, {}).get(digest)
 # The disc's files the build reads besides the ELF: the packs' input and the sound modules (cmake/sc3_audio.cmake).
 DISC_FILES = ('ROOT.OLK', 'IRX/CRI_ADXI.IRX', 'IRX/NUSOUND.IRX', 'IRX/SDRDRV.IRX')
 STEPS = ['verify', 'extract', 'configure', 'tools', 'recompile', 'packs', 'compile', 'stage']
@@ -439,6 +453,10 @@ class Build:
             finally:
                 disc.close()
         sha1, what, _ = RELEASES[boot]
+        variant = accepted(boot, digest)
+        if variant:
+            emit('INFO', 'verify', '%s, %s SHA-1 ok' % (variant, boot))
+            return boot
         if digest != sha1:
             raise BuildError('%s on this disc is not the one SoulCaliburIII_Recomp supports (SHA-1 %s, expected %s): a '
                              'different printing or a modified or damaged image. Make a fresh 1:1 copy of your disc '
@@ -469,7 +487,7 @@ class Build:
         for other in RELEASES:
             if other != self.boot() and os.path.exists(os.path.join(self.disc_dir, other)):
                 os.remove(os.path.join(self.disc_dir, other))
-        if sha1_file(self.elf()) != RELEASES[self.boot()][0]:
+        if not accepted(self.boot(), sha1_file(self.elf())):
             raise BuildError("the extracted %s differs from the disc's (disk error?)" % self.boot())
         # The packs' inputs are ready (cmake/bozo.cmake's SC3_DISC_DIR).
         with open(marker, 'w') as f:
@@ -490,7 +508,7 @@ class Build:
                 try:
                     boot = self.boot()
                     if (disc.boot_elf() or '').upper() == boot and \
-                            hashlib.sha1(disc.read(boot)).hexdigest() == RELEASES[boot][0]:
+                            accepted(boot, hashlib.sha1(disc.read(boot)).hexdigest()):
                         return os.path.join(d, name)
                 finally:
                     disc.close()
@@ -720,7 +738,7 @@ class Build:
                         % (name, boot))
             os.chmod(sh, 0o755)
         with open(os.path.join(self.game, 'sc3_build.json'), 'w') as f:
-            json.dump({'built': time.strftime('%Y-%m-%d %H:%M:%S'), 'engine': 'BozoEngine', 'elf': boot, 'elf_sha1': RELEASES[boot][0],
+            json.dump({'built': time.strftime('%Y-%m-%d %H:%M:%S'), 'engine': 'BozoEngine', 'elf': boot, 'elf_sha1': sha1_file(self.elf()),
                        'build_type': self.args.build_type, 'debug_info': self.args.debug_info,
                        'toolchain': self.find_toolchain(), 'kit': self.kit, 'exe': name,
                        'files': [os.path.basename(p) for p in staged]}, f, indent=1)

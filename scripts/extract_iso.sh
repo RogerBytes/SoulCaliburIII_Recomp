@@ -16,5 +16,7 @@ else
     echo "no SLUS_212.16 or SCES_533.12 in $1: not a Soulcalibur III disc the port supports?"; exit 1
 fi
 actual=$(sha1sum "$ELF" | cut -d' ' -f1)
+# Resurrected Arcade Edition v0.2: a mod of SCES_533.12 with the same layout, built like it.
+[ "$actual" = 7a28609667a1b027cc5fb65416d3da12bde9fe4a ] && expected=$actual
 [ "$actual" = "$expected" ] || echo "warning: $(basename "$ELF") SHA-1 is $actual, the port is built against $expected"
 echo "Disc files in $GAME_DIR"
