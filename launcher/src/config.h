@@ -10,6 +10,8 @@
 struct LauncherConfig
 {
     std::string disc;          // the disc image the player picked
+    std::string discRelease;   // "usa" or "europe": the disc check's answer
+    std::string gameLanguage;  // the European disc's language: en, fr, de, es, it ("" = Windows' language)
     std::string language;      // "en", "fr" ("" = Windows' language)
     bool motion = true;        // the background's animation
     bool buildPending = false; // a build started and did not finish (resumes)

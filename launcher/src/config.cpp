@@ -60,6 +60,8 @@ bool LauncherConfig::load(const std::string &file)
     if (!readIni(file, v, false))
         return false;
     disc = v["disc"];
+    discRelease = v["disc_release"];
+    gameLanguage = v["game_language"];
     language = v["language"];
     motion = v.count("motion") ? v["motion"] != "0" : true;
     buildPending = v["build_pending"] == "1";
@@ -76,6 +78,8 @@ bool LauncherConfig::save(const std::string &file) const
     std::snprintf(seconds, sizeof(seconds), "%.0f", lastBuildSeconds);
     std::string text = "# SC3 Launcher's settings (the launcher writes this file).\n[launcher]\n";
     text += "disc = " + disc + "\n";
+    text += "disc_release = " + discRelease + "\n";
+    text += "game_language = " + gameLanguage + "\n";
     text += "language = " + language + "\n";
     text += std::string("motion = ") + (motion ? "1" : "0") + "\n";
     text += std::string("build_pending = ") + (buildPending ? "1" : "0") + "\n";

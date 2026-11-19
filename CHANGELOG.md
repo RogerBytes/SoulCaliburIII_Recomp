@@ -15,6 +15,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 ### Added
 - Save states: F5 saves, F7 loads, F6 / Shift+F6 pick one of ten slots, also in the settings window (F2); kept in the
   user folder's `states/`. `--save-state` and `--load-state` for scripted runs. A save waits while a movie plays.
+- The European disc, SCES-53312 (v2.00): built from it as from the USA disc, by `sc3_build.py`, the launcher and CMake
+  (`SC3_REGION` from the ELF's SHA-1). Its PAL50 and PAL60 modes run at 50 and 60 frames a second, and its five
+  languages are chosen in the launcher's settings or with `SC3_LANGUAGE`.
+- `scripts/sc3_region_map.py`: where an address of the USA executable lives in the European one, and the PAL recomp
+  inputs made with it (`recomp/pal/`).
 - Texture upscaling, off by default: the game's textures drawn from 2x or 4x copies (edge-directed or smooth filter),
   in the launcher's settings, the Video tab (F2) and `video.ini`.
 - The game on BozoEngine: the whole executable recompiled (16,656 functions), every library answered natively, the
@@ -26,7 +31,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
   copy. All nine modes run with no mesh part lost.
 - Movies decoded with FFmpeg from your disc image, on the game's own clock: full-screen movies at 29.95-29.98 pictures
   a second with their soundtracks, and the menu preview loops.
-- Windows: `SC3 Launcher.exe` and the build kit. The launcher checks your USA disc image (SLUS-21216), builds the game
+- Windows: `SC3 Launcher.exe` and the build kit. The launcher checks your disc image (USA or European), builds the game
   from it on your PC with the kit (no MSYS2, Python or network needed) and starts it.
 - `scripts/sc3_build.py`: the same build from the command line, on Windows or Linux.
 - `scripts/make_release.py`, `scripts/apply_update.py` and the CI and release workflows.

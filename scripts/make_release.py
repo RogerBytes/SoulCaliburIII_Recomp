@@ -818,7 +818,7 @@ class Release:
         sources = os.path.isfile(self.sources_zip + '.sha256')
         lines = [
             '# SoulCaliburIII_Recomp %s' % self.version, '',
-            'Soulcalibur III (USA) as a native PC game, built on your PC from **your own disc**: nothing of the '
+            'Soulcalibur III (USA or Europe) as a native PC game, built on your PC from **your own disc**: nothing of the '
             'game is in this download.', '',
             "## What's new", '', self.changelog_section.strip(), '',
             '## Download', '',
@@ -829,7 +829,7 @@ class Release:
             '2. Unzip it anywhere you like except Program Files, with about 15 GB free, and double-click '
             '**SC3 Launcher.exe**. It is not signed: on *Windows protected your PC*, click **More info**, then '
             '**Run anyway**.',
-            '3. Select your USA disc image (SLUS-21216), **Prepare the game** (once; the texture and model '
+            '3. Select your disc image (USA, SLUS-21216, or Europe, SCES-53312), **Prepare the game** (once; the texture and model '
             'conversion and the compile take a while), **Play**.', '',
             'Saves and settings are in `%APPDATA%\\SoulCaliburIII_Recomp`; they stay across updates.',
             '',
@@ -1043,7 +1043,7 @@ What this is
   A native PC version of Soulcalibur III (PS2), built on your own PC from YOUR OWN disc.
   Nothing of the game is in this download: no game files, no code taken from the game.
   Requires Windows 10 version 1903 or newer (or Windows 11), a 64-bit CPU and OpenGL 3.3.
-  You need a disc image of the USA release (SLUS-21216): a .iso, or a .bin with its .cue.
+  You need a disc image of the USA release (SLUS-21216) or the European one (SCES-53312): a .iso, or a .bin with its .cue.
   Discs of the other regions are not supported.
 
 Before you start: check the download
@@ -1057,7 +1057,7 @@ Install
      Keep the folders together: SC3 Launcher.exe, source\\ and kit\\.
   2. Double-click "SC3 Launcher.exe". It is not signed, so Windows may show
      "Windows protected your PC": click "More info", then "Run anyway".
-  3. Click "Select your disc image..." and pick your USA disc image.
+  3. Click "Select your disc image..." and pick your disc image. With the European disc, the settings choose the game's language.
   4. Click "Prepare the game". It takes a while, once (converting the textures and models, then compiling).
      You can stop it; it continues later.
   5. Click "Play". In the game, F2 opens the settings (controls, video).
@@ -1092,7 +1092,7 @@ De quoi s'agit-il
   Une version PC native de Soulcalibur III (PS2), construite sur votre PC à partir de VOTRE PROPRE disque.
   Rien du jeu n'est dans ce téléchargement : aucun fichier du jeu, aucun code issu du jeu.
   Nécessite Windows 10 version 1903 ou ultérieure (ou Windows 11), un processeur 64 bits et OpenGL 3.3.
-  Il vous faut une image disque de la version américaine (SLUS-21216) : un .iso, ou un .bin avec son .cue.
+  Il vous faut une image disque de la version américaine (SLUS-21216) ou européenne (SCES-53312) : un .iso, ou un .bin avec son .cue.
   Les disques des autres régions ne sont pas pris en charge.
 
 Avant de commencer : vérifiez le téléchargement
@@ -1106,7 +1106,7 @@ Installation
      Gardez les dossiers ensemble : SC3 Launcher.exe, source\\ et kit\\.
   2. Double-cliquez sur « SC3 Launcher.exe ». Il n'est pas signé : si Windows affiche
      « Windows a protégé votre ordinateur », cliquez sur « Informations complémentaires », puis « Exécuter quand même ».
-  3. Cliquez sur « Choisir votre image disque... » et choisissez votre image du disque américain.
+  3. Cliquez sur « Choisir votre image disque... » et choisissez votre image disque. Avec le disque européen, les réglages choisissent la langue du jeu.
   4. Cliquez sur « Préparer le jeu ». Cela prend un moment, une seule fois (conversion des textures et modèles, puis
      compilation). Vous pouvez l'arrêter ; la suite reprendra.
   5. Cliquez sur « Jouer ». En jeu, F2 ouvre les réglages (commandes, vidéo).

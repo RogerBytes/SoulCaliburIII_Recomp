@@ -1,6 +1,6 @@
 # Recompilation notes
 
-How *Soulcalibur III* (SLUS-21216) runs on BozoEngine: how the stripped ELF is bound, what SC3's port code answers
+How *Soulcalibur III* (SLUS-21216, and the European SCES-53312) runs on BozoEngine: how the stripped ELF is bound, what SC3's port code answers
 and why, how each piece was checked, and what is still open. Build steps are in the [README](README.md). The earlier
 PS2Recomp build is summarised at the end.
 
@@ -122,6 +122,37 @@ so they are drawn but unchecked.
   0.64 dB, max 4.21 dB, cosine min 0.885, median 0.984. The large windows are alignment (one lag for the whole file).
   Boot with movies: 74.3 dB both, cosine 0.999.
 - Not checked: playback on a real device. Test runs use SDL's dummy driver and measure the mixer's output (`--wav`).
+
+## The European release (SCES_533.12)
+
+The PAL disc ("Europe, Australia", v2.00) has the USA disc's files; its ELF's `.text` is 0x5800 bytes longer, its data
+moved by varying amounts. The port names the game's addresses, and each disc has its own value for every name.
+
+- `scripts/sc3_region_map.py build SLUS_212.16 SCES_533.12 recomp/pal/address_map.txt` lines the two up. Functions (a
+  jal target to the next) match by their bodies with every relocated field masked, unique on both sides first, then
+  through the callees the matched ones name, then in order between matched neighbours; PAL reorders some, so one diff
+  of the whole `.text` is not enough. The initialised data is diffed word by word with pointers masked; `.sbss` and
+  `.bss` take their ranges from the addresses the matched code computes (lui pairs, `$gp` offsets, pointers). 651 of
+  8,715 functions differ beyond their place, and a function whose calls or addresses disagree with the map counts as
+  changed even when its masked body is equal (callers that PAL sends to another function).
+- Checked: the 733 names of `recomp/sc3_symbols.txt` land, through the map, exactly where `bozo_symbolmap.py` finds them
+  in SCES_533.12 on its own, `_vfprintf_r` included. Of the 70 patches, 67 hold the same word at the mapped place, two
+  were found by the instruction search (PAL scheduled them elsewhere) and one is written by hand
+  (`recomp/pal/sc3_patches_reviewed.txt`: PAL keeps the frame clock's count in `$4`).
+- `bozo/port/sc3_addresses.txt` is the port's one list of game addresses: a name, its SLUS_212.16 and SCES_533.12
+  values, a note on what lives there. The port reads them as `sc3::addr::Name` and calls the game's functions as
+  `sc3::fn::Name`, from the `sc3_region.h` the build writes from the disc's column (`sc3_region_map.py header`); the
+  override list and the 2D pack's ELF texture files read the same column. `sc3_region_map.py addresses` fills the PAL
+  column from the map; a row inside a function PAL changed is read by hand and marked `reviewed` (five are), and
+  `tests/test_region_map.py` checks the committed column against the map.
+- PAL asks at boot for PAL50 or PAL60 (and counts 30 s down on PAL50). The frame pacer, the field a frame with no wait
+  of its own takes, and the movie clock follow the field rate BozoEngine's kernel keeps from the game's display set-up:
+  50 or 60 game frames a second.
+- `SC3_LANGUAGE` (en, fr, de, es, it) sets the OSD language GetOsdConfigParam answers, at `_InitSys`. The launcher's
+  settings pass it for the European disc.
+- Open: PAL's movie copy (0x217E28 in NTSC terms) does more on its early return (a call to 0x128B38's PAL twin, a
+  field +0x4C set); the port's override skips the copy when it shows movie pictures itself, PAL's addition with it.
+  Nothing missing was seen on the opening movie.
 
 ## Checks and how they are run
 
