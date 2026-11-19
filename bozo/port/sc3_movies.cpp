@@ -482,7 +482,7 @@ namespace sc3::movies
         void pushAudio(PS2Runtime *runtime, bool realTime, double field)
         {
             const double now = static_cast<double>(++g_audioTicks) * field;
-            const uint64_t target = static_cast<uint64_t>(now * kRate) + (realTime ? kRate / 5u : kRate / 60u);
+            const uint64_t target = static_cast<uint64_t>(now * kRate) + (realTime ? kRate / 5u : std::max<uint64_t>(kRate / 60u, static_cast<uint64_t>(field * kRate)));
             if (target <= g_audioPushed)
                 return;
             const size_t count = static_cast<size_t>(std::min<uint64_t>(target - g_audioPushed, kRate / 2u));
