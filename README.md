@@ -244,8 +244,9 @@ your disc ──► sc3_build.py / CMake
 
 - The ELF has no symbols. `recomp/sc3_symbols.txt` names its library functions from our own matcher and a hand review
   (`sc3_symbols_reviewed.txt`); BozoEngine answers those natively.
-- The port names `SLUS_212.16`'s addresses. A PAL build places each one in `SCES_533.12` with
-  `recomp/pal/address_map.txt` (`scripts/sc3_region_map.py`), and takes `recomp/pal/`'s symbol map and patches.
+- The port names the game's addresses: `bozo/port/sc3_addresses.txt` has each one's value on both discs (the PAL
+  column made with `recomp/pal/address_map.txt`, `scripts/sc3_region_map.py`). A PAL build takes that column and
+  `recomp/pal/`'s symbol map and patches.
 - `bozo/port/` holds SC3's own code: the frame kick and ordering table (`sc3_frame.cpp`, `sc3_ot.cpp`,
   `sc3_packet.cpp`), the clock (`sc3_clock.cpp`), the 2D builders (`sc3_2d.cpp`), meshes, textures and materials
   (`sc3_meshes.cpp`, `sc3_textures.cpp`, `sc3_texture_pack.cpp`, `sc3_material.cpp`), passes (`sc3_offscreen.cpp`),

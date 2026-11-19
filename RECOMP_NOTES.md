@@ -126,7 +126,7 @@ so they are drawn but unchecked.
 ## The European release (SCES_533.12)
 
 The PAL disc ("Europe, Australia", v2.00) has the USA disc's files; its ELF's `.text` is 0x5800 bytes longer, its data
-moved by varying amounts. The port names SLUS_212.16's addresses everywhere, and a PAL build places them.
+moved by varying amounts. The port names the game's addresses, and each disc has its own value for every name.
 
 - `scripts/sc3_region_map.py build SLUS_212.16 SCES_533.12 recomp/pal/address_map.txt` lines the two up. Functions (a
   jal target to the next) match by their bodies with every relocated field masked, unique on both sides first, then
@@ -139,11 +139,12 @@ moved by varying amounts. The port names SLUS_212.16's addresses everywhere, and
   in SCES_533.12 on its own, `_vfprintf_r` included. Of the 70 patches, 67 hold the same word at the mapped place, two
   were found by the instruction search (PAL scheduled them elsewhere) and one is written by hand
   (`recomp/pal/sc3_patches_reviewed.txt`: PAL keeps the frame clock's count in `$4`).
-- The port writes an address as `at(0x...)` and a guest call as `recompiled<0x...>`. `sc3_region_map.py header` makes
-  `sc3_region.h` at build time from every one of them: identity for NTSC; for PAL the map's place, or the line of
-  `recomp/pal/address_reviewed.txt` for an address inside a function PAL changed. Such an address with no reviewed line
-  stops the build, and an address the map has no place for too. The override list (`sc3_overrides_list.py --map`) and
-  the 2D pack's ELF texture files carry the PAL places the same way.
+- `bozo/port/sc3_addresses.txt` is the port's one list of game addresses: a name, its SLUS_212.16 and SCES_533.12
+  values, a note on what lives there. The port reads them as `sc3::addr::Name` and calls the game's functions as
+  `sc3::fn::Name`, from the `sc3_region.h` the build writes from the disc's column (`sc3_region_map.py header`); the
+  override list and the 2D pack's ELF texture files read the same column. `sc3_region_map.py addresses` fills the PAL
+  column from the map; a row inside a function PAL changed is read by hand and marked `reviewed` (five are), and
+  `tests/test_region_map.py` checks the committed column against the map.
 - PAL asks at boot for PAL50 or PAL60 (and counts 30 s down on PAL50). The frame pacer, the field a frame with no wait
   of its own takes, and the movie clock follow the field rate BozoEngine's kernel keeps from the game's display set-up:
   50 or 60 game frames a second.
