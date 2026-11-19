@@ -11,7 +11,8 @@ strip=${MINGW_ROOT:+$MINGW_ROOT/bin/x86_64-w64-mingw32-}strip
 for program in sc3.exe sc3-headless.exe; do
     "$strip" -o "$out/$program" "$build/$program"
 done
-cp "$root/recomp/sc3_symbols.txt" "$out/"
+symbols=$(sed -n 's/^SC3_SYMBOL_MAP:[A-Z]*=//p' "$build/CMakeCache.txt")
+cp "${symbols:-$root/recomp/sc3_symbols.txt}" "$out/sc3_symbols.txt"
 for pack in sc3_2d.pack sc3_2d.leaves sc3_2d_textures.pack sc3_textures.pack sc3_textures.keys sc3_meshes.pack sc3_meshes.leaves; do
     [ ! -f "$build/packs/$pack" ] || ln -f "$build/packs/$pack" "$out/packs/$pack" 2>/dev/null || cp "$build/packs/$pack" "$out/packs/$pack"
 done
