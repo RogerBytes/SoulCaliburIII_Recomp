@@ -104,6 +104,7 @@ add_subdirectory("${BOZO_ENGINE_DIR}" bozo)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 set(gen_dir "${CMAKE_BINARY_DIR}/sc3_gen")
+set(region_dir "${CMAKE_BINARY_DIR}/sc3_region")
 set(overrides_list "${gen_dir}/sc3_overrides.txt")
 set(externals "${gen_dir}/sc3_externals.txt")
 set(port_dir "${CMAKE_SOURCE_DIR}/bozo/port")
@@ -121,15 +122,15 @@ if(SC3_SYMBOL_MAP)
 endif()
 file(GLOB_RECURSE sc3_named_sources CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/bozo/*.cpp" "${CMAKE_SOURCE_DIR}/bozo/*.h")
 add_custom_command(
-    OUTPUT ${gen_dir}/sc3_region.h
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${gen_dir}
-    COMMAND Python3::Interpreter "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" header ${gen_dir}/sc3_region.h
+    OUTPUT ${region_dir}/sc3_region.h
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${region_dir}
+    COMMAND Python3::Interpreter "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" header ${region_dir}/sc3_region.h
             --title "${sc3_title}" --elf ${sc3_boot} --table "${port_dir}/sc3_addresses.txt" --column ${sc3_column}
             ${sc3_header_symbols} --sources "${CMAKE_SOURCE_DIR}/bozo"
     DEPENDS "${CMAKE_SOURCE_DIR}/scripts/sc3_region_map.py" ${sc3_named_sources} "${port_dir}/sc3_addresses.txt" ${SC3_SYMBOL_MAP}
     COMMENT "SC3's addresses in ${sc3_boot}"
     VERBATIM)
-add_custom_target(sc3_region DEPENDS ${gen_dir}/sc3_region.h)
+add_custom_target(sc3_region DEPENDS ${region_dir}/sc3_region.h)
 set(externals_args --overrides ${overrides_list} --stubs "${CMAKE_SOURCE_DIR}/recomp/sc3_stubs.txt")
 set(externals_depends ${overrides_list} "${CMAKE_SOURCE_DIR}/recomp/sc3_stubs.txt")
 if(SC3_SYMBOL_MAP)
@@ -183,8 +184,8 @@ target_include_directories(sc3_generated PUBLIC ${gen_dir})
 target_compile_options(sc3_generated PRIVATE ${SC3_GEN_OPT} -w)
 
 # An object library: BOZO_PORT's registration must be linked whatever references it.
-add_library(sc3_port OBJECT ${SC3_PORT_SOURCES} ${gen_dir}/sc3_region.h)
-target_include_directories(sc3_port PUBLIC "${port_dir}" ${gen_dir})
+add_library(sc3_port OBJECT ${SC3_PORT_SOURCES} ${region_dir}/sc3_region.h)
+target_include_directories(sc3_port PUBLIC "${port_dir}" ${gen_dir} ${region_dir})
 target_link_libraries(sc3_port PUBLIC bozo_port bozo_render bozo_libs bozo_runtime_core)
 add_dependencies(sc3_port sc3_generated sc3_region)
 if(BOZO_FFMPEG_ROOT)
@@ -224,14 +225,14 @@ function(sc3_static_link target)
     endif()
 endfunction()
 
-add_executable(sc3-headless bozo/sc3_headless.cpp ${gen_dir}/sc3_region.h)
+add_executable(sc3-headless bozo/sc3_headless.cpp ${region_dir}/sc3_region.h)
 target_link_libraries(sc3-headless PRIVATE sc3_port sc3_generated bozo_host)
 target_compile_definitions(sc3-headless PRIVATE ${sc3_main_defines})
 sc3_static_link(sc3-headless)
 
 # bozo-run's library names the generated tables tmb_*: they are SC3's here.
 if(TARGET bozo_run)
-    add_executable(sc3-check bozo/sc3_check.cpp ${gen_dir}/sc3_region.h)
+    add_executable(sc3-check bozo/sc3_check.cpp ${region_dir}/sc3_region.h)
     target_link_libraries(sc3-check PRIVATE sc3_port sc3_generated bozo_run)
     target_compile_definitions(sc3-check PRIVATE ${sc3_main_defines})
     foreach(table function_table function_count resume_table resume_count external_table external_count)
@@ -241,7 +242,7 @@ if(TARGET bozo_run)
 endif()
 
 if(SC3_WINDOW)
-    add_executable(sc3 bozo/sc3_window.cpp ${gen_dir}/sc3_region.h)
+    add_executable(sc3 bozo/sc3_window.cpp ${region_dir}/sc3_region.h)
     target_link_libraries(sc3 PRIVATE sc3_port sc3_generated bozo_host bozo_app)
     target_compile_definitions(sc3 PRIVATE ${sc3_main_defines})
     sc3_static_link(sc3)
