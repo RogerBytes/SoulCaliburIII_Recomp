@@ -11,4 +11,5 @@ namespace sc3::meshes
     void noteReadBefore(uint8_t *rdram, R5900Context *ctx);
     void noteReadAfter(uint8_t *rdram, R5900Context *ctx);
     void noteCopy(uint8_t *rdram, R5900Context *ctx);
+    void state(bozo::state::Archive &a);
 }

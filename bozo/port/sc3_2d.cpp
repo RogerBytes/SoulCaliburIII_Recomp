@@ -1,6 +1,7 @@
 // SC3's 2D builders in C++ (word-equal rewrites of their MIPS, checked against the game's packets on the old base:
 // RECOMP_NOTES "Native 2D"), drawn through the native ordering table (sc3_ot.h). Textures from the 2D pack by file key.
 #include "sc3_draw.h"
+#include "sc3_state.h"
 
 #include "bozo/render/mesh_pack.h"
 #include "bozo/render/renderer.h"
@@ -177,6 +178,9 @@ namespace sc3
             std::map<uint32_t, uint32_t> movieDests, moviePages;
             uint64_t movieCopiesSkipped = 0, movieTextures = 0, movieChecks = 0, movieTexelsDiffering = 0, frameTextures = 0;
         };
+
+        void io(bozo::state::Archive &a, State::PageCopy &copy) { bozo::state::fields(a, copy.file, copy.page, copy.clut, copy.absolute, copy.resolved, copy.block, copy.cbp); }
+        void io(bozo::state::Archive &a, State::Movie &movie) { bozo::state::fields(a, movie.number, movie.slot, movie.copied); }
 
         std::optional<State> g_owner{std::in_place};
         State &g_state = *g_owner;
@@ -4172,6 +4176,29 @@ namespace sc3
     }
 
     void twoD::shutdown() { g_owner.reset(); }
+
+    void twoD::state(bozo::state::Archive &a, Runtime *runtime)
+    {
+        State &s = g_state;
+        if (a.loading() && !s.rdram)
+        {
+            s.rdram = runtime->memory.ram();
+            s.scratchpad = bozo::port::scratchpad(runtime);
+        }
+        imagesState(a, s.loaded, s.pack);
+        leavesState(a, s.leaves);
+        bozo::state::fields(a, s.olkLbn, s.requestDest, s.requestPos, s.requestPending, s.nextKey, s.frames, s.uploadFilesSeen, s.pageCopies,
+                            s.movies, s.movieDests, s.moviePages);
+        if (!a.loading())
+            return;
+        s.effectSlot.reset();
+        for (auto &[block, copy] : s.pageCopies)
+            if (copy.resolved)
+            {
+                BuilderStats unused;
+                copy.resolved = copiedBlockPage(copy, copy.resolvedPage, unused);
+            }
+    }
 
     void twoD::install(Registry &runtime)
     {

@@ -3,6 +3,10 @@
 
 #include "sc3_port.h"
 
+#ifdef SC3_NATIVE_SOUND
+#include "sc3_audio.h"
+#endif
+
 #include "bozo/host/free_host.h"
 
 #include <cstdio>
@@ -23,6 +27,8 @@
 
 namespace sc3
 {
+    constexpr const char *kGameTag = "SLUS-21216";
+
     // SC3_SYMBOL_MAP, else sc3_symbols.txt beside the program, else the build's own map.
     inline void useSymbolMap(bozo::host::FreeOptions &options, const char *program)
     {
@@ -151,5 +157,45 @@ namespace sc3
         else
             std::fprintf(stderr, "%s: the game ended after %llu frames: %s\n", program, static_cast<unsigned long long>(frames),
                          reason.empty() ? "every thread ended" : reason.c_str());
+    }
+
+    // --save-state file --save-state-at n, --load-state file [--load-state-at n]: false when `option` is none of them.
+    template <typename Value>
+    bool stateOption(const std::string &option, Value value, bozo::host::FreeOptions &options)
+    {
+        if (option == "--save-state")
+            options.saveState = value();
+        else if (option == "--save-state-at")
+            options.saveStateFrame = static_cast<uint32_t>(std::stoul(value()));
+        else if (option == "--load-state")
+            options.loadState = value();
+        else if (option == "--load-state-at")
+            options.loadStateFrame = static_cast<uint32_t>(std::stoul(value()));
+        else
+            return false;
+        return true;
+    }
+
+    inline void addStateSection(bozo::host::FreeHost &host, Runtime *runtime)
+    {
+        host.stateSections()->add({"sc3",
+                                   [runtime](bozo::state::Archive &a)
+                                   {
+#ifdef SC3_NATIVE_SOUND
+                                       a.begin("audio");
+                                       audio::state(a);
+                                       a.end();
+#endif
+                                       state(a, runtime);
+                                   },
+                                   []
+                                   {
+                                       std::string reason = unsaveable();
+#ifdef SC3_NATIVE_SOUND
+                                       if (reason.empty())
+                                           reason = audio::unsaveable();
+#endif
+                                       return reason;
+                                   }});
     }
 }

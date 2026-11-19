@@ -8,6 +8,7 @@
 #include "bozo/recomp.h"
 #include "sc3_functions.h"
 
+#include <string>
 #include <vector>
 
 using PS2Runtime = Runtime;
@@ -18,10 +19,15 @@ namespace sc3
 
     constexpr uint32_t kEntry = 0x100008u;
 
-    namespace frame { void install(Registry &runtime); }
+    namespace frame
+    {
+        void install(Registry &runtime);
+        void state(bozo::state::Archive &a);
+    }
     namespace clock
     {
         void install(Registry &runtime);
+        void state(bozo::state::Archive &a);
         // The horizontal blanks so far, 16 bits; reading the same count again charges a line (a poll takes time).
         uint32_t lines(PS2Runtime *runtime, R5900Context *ctx);
         uint32_t linesSinceVblank(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
@@ -38,6 +44,7 @@ namespace sc3
         void install(Registry &runtime);
         void kick(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime);
         void dropFrame(uint8_t *rdram);
+        void stateLoaded();
         // A frame with no kick (a movie's): presents what the renderer holds.
         void presentAlone();
         void holdStill();
@@ -57,9 +64,12 @@ namespace sc3
         // its number.
         bool picture(PS2Runtime *runtime, uint32_t handle, uint32_t known, std::vector<uint32_t> &rgba, uint32_t &width, uint32_t &height, uint32_t &number);
         void shutdown();
+        std::string unsaveable();
     }
     namespace audio { void install(Registry &runtime); }
     void statsLine(const char *format, ...) __attribute__((format(printf, 1, 2)));
     // After the game's last frame, while the renderer still exists: players stopped, every texture and draw the port keeps released.
     void shutdown();
+    void state(bozo::state::Archive &a, Runtime *runtime);
+    std::string unsaveable();
 }

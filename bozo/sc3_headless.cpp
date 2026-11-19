@@ -4,11 +4,8 @@
 //   sc3-headless [--frames n] [--elf SLUS_212.16] [--iso image] [--pad-script [n=]file]... [--card-dir dir]
 //                [--out run.ref] [--report n] [--print] [--quiet] [--profile-io] [--wav file] [--no-sound]
 //                [--dump-ram dir n,n,...]  RAM at the frame ends where the game's frame counter 0x46E608 reaches each n
+//                [--save-state file --save-state-at n] [--load-state file [--load-state-at n]]
 #include "sc3_main.h"
-
-#ifdef SC3_NATIVE_SOUND
-#include "sc3_audio.h"
-#endif
 
 #include "bozo/app/determinism.h"
 #include "bozo/audio/wav.h"
@@ -77,10 +74,11 @@ int main(int argc, char **argv)
             wavPath = value();
         else if (a == "--no-sound")
             opt.sound = false;
-        else
+        else if (!sc3::stateOption(a, value, opt))
         {
             std::fprintf(stderr, "usage: sc3-headless [--frames n] [--elf path] [--iso image] [--pad-script [n=]file]... [--card-dir dir] "
-                                 "[--out run.ref] [--report n] [--print] [--quiet] [--profile-io] [--wav file] [--no-sound]\n");
+                                 "[--out run.ref] [--report n] [--print] [--quiet] [--profile-io] [--wav file] [--no-sound] "
+                                 "[--dump-ram dir n,n,...] [--save-state file --save-state-at n] [--load-state file [--load-state-at n]]\n");
             return 2;
         }
     }
@@ -103,11 +101,14 @@ int main(int argc, char **argv)
     if (!sc3::installPort("sc3-headless", registry))
         return 2;
 
+    opt.gameTag = sc3::kGameTag;
     bozo::host::FreeHost host(opt);
+    host.onStateMessage = [](bool, const std::string &message) { std::printf("[state] %s\n", message.c_str()); };
 #ifdef SC3_NATIVE_SOUND
     sc3::audio::attach(host.libraries());
 #endif
     bozo::ee::Dispatcher d(host);
+    sc3::addStateSection(host, &d.runtime());
     d.setFunctions(sc3_function_table, sc3_function_count, sc3_resume_table, sc3_resume_count);
     std::string error;
     if (!host.setUp(d, sc3_external_table, sc3_external_count, &registry, error))

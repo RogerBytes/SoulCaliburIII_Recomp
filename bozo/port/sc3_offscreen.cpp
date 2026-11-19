@@ -84,6 +84,8 @@ namespace sc3::offscreen
             uint32_t mode = 0, colour = 0, fix = 0, blurs = 0, reference = 0;
         };
 
+        void io(bozo::state::Archive &a, Glow &glow) { bozo::state::fields(a, glow.mode, glow.colour, glow.fix, glow.blurs, glow.reference); }
+
         // A quad over the whole target: its corners in GS coordinates, u and v over the source.
         void wholeTarget(bozo::render::Renderer &renderer, const bozo::render::Material &material, uint32_t colour, float shiftU, float shiftV)
         {
@@ -536,6 +538,8 @@ namespace sc3::offscreen
                   static_cast<unsigned long long>(g_darkens));
         g_glows = g_setups = g_volumes = g_triangles = g_volumesDropped = g_darkens = 0;
     }
+
+    void state(bozo::state::Archive &a) { bozo::state::fields(a, g_glowBuffers, g_frames); }
 
     void install(Registry &runtime)
     {

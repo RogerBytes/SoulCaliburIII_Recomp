@@ -59,4 +59,12 @@ namespace sc3::audio
         libraries.audioProvider = [h](uint64_t cycle) { return h->advanceTo(cycle); };
         return *g_host;
     }
+
+    void state(bozo::state::Archive &a)
+    {
+        g_host->serialize(a);
+        bozo::state::fields(a, g_otherModules);
+    }
+
+    std::string unsaveable() { return g_host ? g_host->unsaveable() : std::string(); }
 }

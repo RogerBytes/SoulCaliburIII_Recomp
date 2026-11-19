@@ -710,6 +710,15 @@ namespace sc3::movies
 #endif
     }
 
+    std::string unsaveable()
+    {
+#ifdef SC3_HAVE_FFMPEG
+        if (!g_players.empty())
+            return "a movie is playing";
+#endif
+        return {};
+    }
+
     void shutdown()
     {
 #ifdef SC3_HAVE_FFMPEG
