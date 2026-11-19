@@ -138,6 +138,15 @@ class RegionMapTest(unittest.TestCase):
             self.assertEqual(region.patches(self.map, patches, self.ntsc, self.pal, reviewed, out), 1)
         self.assertTrue(out.read_text().splitlines()[1].startswith('# REVIEW 0x100020'))
 
+    def test_jump_to_a_target_without_a_place_is_left_for_review(self):
+        patches, reviewed, out = self.folder / 'patches.txt', self.folder / 'reviewed.txt', self.folder / 'out.txt'
+        patches.write_text('0x10002c 0x%08x 0x%08x\n' % (sw(0, 0, V1), jal(0x120010)))
+        reviewed.write_text('')
+        with redirect_stdout(StringIO()):
+            self.assertEqual(region.patches(self.map, patches, self.ntsc, self.pal, reviewed, out), 1)
+        self.assertEqual(out.read_text().splitlines()[1:],
+                         ['# REVIEW 0x10002c 0x%08x 0x%08x: the jump target has no place' % (sw(0, 0, V1), jal(0x120010))])
+
     def test_vote_drops_a_stray_offset(self):
         pairs = [(0x120000, 0x120020), (0x120008, 0x120028), (0x120008, 0x120028), (0x120008, 0x130028),
                  (0x120040, 0x110040), (0x120080, 0x1200A0)]
