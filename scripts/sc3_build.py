@@ -88,7 +88,6 @@ RELEASES = {
     'SCES_533.12': ('8c79c1db3395e72ada118860433de6638ccf9401', 'European disc (SCES-53312)', os.path.join('recomp', 'pal')),
 }
 SUPPORTED = 'the USA disc (SLUS-21216) or the European disc (SCES-53312)'
-RELEASE_INPUTS = ('address_map.txt', 'address_reviewed.txt')
 # The disc's files the build reads besides the ELF: the packs' input and the sound modules (cmake/sc3_audio.cmake).
 DISC_FILES = ('ROOT.OLK', 'IRX/CRI_ADXI.IRX', 'IRX/NUSOUND.IRX', 'IRX/SDRDRV.IRX')
 STEPS = ['verify', 'extract', 'configure', 'tools', 'recompile', 'packs', 'compile', 'stage']
@@ -394,13 +393,14 @@ class Build:
         if step == 'recompile':
             return fingerprint(prev('tools'), tree_stamp(os.path.join(ROOT, 'bozo', 'port'), ('.cpp',)),
                                [file_stamp(os.path.join(ROOT, 'recomp', n)) for n in RECOMP_INPUTS],
-                               [file_stamp(os.path.join(self.recomp_dir(), n)) for n in RECOMP_INPUTS + RELEASE_INPUTS],
+                               [file_stamp(os.path.join(self.recomp_dir(), n)) for n in RECOMP_INPUTS],
+                               file_stamp(os.path.join(ROOT, 'bozo', 'port', 'sc3_addresses.txt')),
                                [file_stamp(os.path.join(ROOT, 'scripts', n)) for n in
                                 ('sc3_overrides_list.py', 'sc3_externals_all_transfers.py', 'sc3_region_map.py')])
         if step == 'packs':
             return fingerprint(prev('configure'),
                                [file_stamp(os.path.join(ROOT, 'scripts', t)) for t in PACK_SCRIPTS + ('sc3_region_map.py',)],
-                               file_stamp(os.path.join(ROOT, 'recomp', 'pal', 'address_map.txt')),
+                               file_stamp(os.path.join(ROOT, 'bozo', 'port', 'sc3_addresses.txt')),
                                tree_stamp(os.path.join(ENGINE, 'tools', 'native_pack'), ('.py',)))
         if step == 'compile':
             return fingerprint(prev('recompile'), prev('packs'),
