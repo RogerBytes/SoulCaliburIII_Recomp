@@ -147,6 +147,7 @@ namespace sc3
                 uint32_t file = 0, page = 0, clut = 0;
                 bool absolute = false; // clut is the CBP itself
                 bool resolved = false; // resolvedPage is the copied page, found while its file was there
+                uint32_t block = 0, cbp = ~0u; // what resolvedPage was found from
                 Page resolvedPage;
             };
             std::map<uint32_t, PageCopy> pageCopies; // 0x119318's copies of page blocks, by where they went
@@ -333,7 +334,7 @@ namespace sc3
         bool moviePage(uint32_t block, Page &out);
         bool framePage(Page &out);
 
-        bool page(uint32_t file, uint32_t index, Page &out, BuilderStats &stats, uint32_t cbp = ~0u)
+        bool pageBlock(uint32_t file, uint32_t index, uint32_t &block, BuilderStats &stats)
         {
             if (!fileAddress(file))
             {
@@ -346,8 +347,14 @@ namespace sc3
                 ++stats.noFile;
                 return false;
             }
-            const uint32_t block = peek32(peek32(file + 0xCu) + std::min(index, pages - 1u) * 4u) & ~0xFu;
-            return blockPage(block, out, stats, cbp);
+            block = peek32(peek32(file + 0xCu) + std::min(index, pages - 1u) * 4u) & ~0xFu;
+            return true;
+        }
+
+        bool page(uint32_t file, uint32_t index, Page &out, BuilderStats &stats, uint32_t cbp = ~0u)
+        {
+            uint32_t block = 0;
+            return pageBlock(file, index, block, stats) && blockPage(block, out, stats, cbp);
         }
 
         bool droppedPage(Page &out, BuilderStats &stats)
@@ -2385,7 +2392,7 @@ namespace sc3
 
         constexpr uint32_t kPageCopy = 0x001191D0u, kPageCopyClut = 0x00119318u, kPageCopyCbp = 0x00119248u;
 
-        bool resolveCopy(const State::PageCopy &copy, Page &out, BuilderStats &stats);
+        bool resolveCopy(State::PageCopy &copy, Page &out, BuilderStats &stats);
 
         void pageCopy(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
         {
@@ -2407,23 +2414,30 @@ namespace sc3
 
         // The page a head-2 item's copy came from, with its CLUT (false: not copied by 0x119318, or no pack texture). Resolved
         // when the copy is made: the file it came from can be gone by the time the copy is drawn.
-        bool resolveCopy(const State::PageCopy &copy, Page &out, BuilderStats &stats)
+        bool copiedBlockPage(const State::PageCopy &copy, Page &out, BuilderStats &stats)
+        {
+            if (!blockPage(copy.block, out, stats, copy.cbp))
+                return false;
+            if (copy.cbp != ~0u)
+                out.tex0 = (out.tex0 & ~(0x3FFFull << 37)) | (static_cast<uint64_t>(copy.cbp) << 37);
+            return true;
+        }
+
+        bool resolveCopy(State::PageCopy &copy, Page &out, BuilderStats &stats)
         {
             Page base;
-            if (!page(copy.file, copy.page, base, stats))
+            if (!pageBlock(copy.file, copy.page, copy.block, stats) || !blockPage(copy.block, base, stats, ~0u))
                 return false;
             if (copy.clut == 0u && !copy.absolute)
             {
+                copy.cbp = ~0u;
                 out = base;
                 return true;
             }
             const uint32_t psm = static_cast<uint32_t>((base.tex0 >> 20) & 0x3Fu);
-            const uint32_t cbp = copy.absolute ? copy.clut
-                                               : (static_cast<uint32_t>((base.tex0 >> 37) & 0x3FFFu) + ((psm & 1u) == 0u ? copy.clut : copy.clut * 4u)) & 0x3FFFu;
-            if (!page(copy.file, copy.page, out, stats, cbp))
-                return false;
-            out.tex0 = (out.tex0 & ~(0x3FFFull << 37)) | (static_cast<uint64_t>(cbp) << 37);
-            return true;
+            copy.cbp = copy.absolute ? copy.clut
+                                     : (static_cast<uint32_t>((base.tex0 >> 37) & 0x3FFFu) + ((psm & 1u) == 0u ? copy.clut : copy.clut * 4u)) & 0x3FFFu;
+            return copiedBlockPage(copy, out, stats);
         }
 
         bool copiedPage(uint32_t block, Page &out, BuilderStats &stats)
